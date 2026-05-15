@@ -1,252 +1,53 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>GivingTree Money Map (Beta)</title>
-<script src="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js"></script>
-<link href="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=DM+Serif+Display&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{--gt-forest:#1B4332;--gt-green:#2D6A4F;--gt-mid:#40916C;--gt-light:#95D5B2;--gt-pale:#D8F3DC;--gt-bg:#F8FAF9;--gt-text:#1a1a1a;--gt-muted:#6b7280;--gt-link:#4B7FA8;--gt-iso:#3B6A8A;--gt-iso-hover:#5a8fb0}
-html,body{width:100%;height:100%;overflow:hidden;margin:0;padding:0;background:transparent}
-#map-container{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:95%;height:95%;border-radius:10px;overflow:hidden}
-#map{width:100%;height:100%}
-.map-header{position:absolute;top:0;left:0;right:0;z-index:10;background:linear-gradient(180deg,rgba(27,67,50,.93) 0%,rgba(27,67,50,.85) 82%,rgba(27,67,50,0) 100%);padding:14px 20px 18px;pointer-events:none}
-.map-header>*{pointer-events:auto}
-.header-top{display:flex;justify-content:space-between;align-items:flex-start}
-.header-brand{display:flex;align-items:center;gap:12px}
-.header-logo{height:36px;width:auto;flex-shrink:0}
-.map-title{font-family:'DM Serif Display',serif;font-size:22px;color:#fff;letter-spacing:.01em;line-height:1.2}
-.beta-badge{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:var(--gt-pale);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:4px;margin-top:2px;white-space:nowrap}
-.map-subtitle{color:rgba(255,255,255,.6);font-size:13px;line-height:1.3;margin-top:3px}
-/* Filter system - desktop */
-.filter-system{position:absolute;top:82px;left:20px;z-index:12;max-width:calc(100% - 40px)}
-.filter-top-row{display:flex;align-items:center;gap:4px;margin-bottom:6px}
-.cat-tab{background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border:1.5px solid rgba(27,67,50,.15);color:var(--gt-forest);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;cursor:pointer;transition:all .2s}
-.cat-tab:hover{background:var(--gt-pale);border-color:var(--gt-mid)}
-.cat-tab.open{background:var(--gt-forest);color:#fff;border-color:var(--gt-forest)}
-.cat-tab.has-selection{background:var(--gt-pale);border-color:var(--gt-mid)}
-.cat-tab.has-selection.open{background:var(--gt-forest);color:#fff}
-.cat-tab .cat-count{display:inline-block;background:var(--gt-mid);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:8px;margin-left:4px;padding:0 4px}
-.cat-tab.open .cat-count{background:rgba(255,255,255,.3)}
-.desktop-clear-all{background:rgba(255,255,255,.88);backdrop-filter:blur(8px);border:1.5px solid rgba(27,67,50,.2);color:var(--gt-forest);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;padding:6px 12px;border-radius:5px;cursor:pointer;transition:all .2s;display:none;margin-left:6px}
-.desktop-clear-all:hover{background:var(--gt-pale);border-color:var(--gt-mid)}
-.desktop-clear-all.visible{display:inline-block}
-.filter-options{display:none;flex-direction:column;align-items:flex-start;gap:4px;padding:4px 0}
-.filter-options.visible{display:flex}
-.filter-opts-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
-.opt-btn{background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border:1.5px solid rgba(27,67,50,.15);color:var(--gt-forest);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;padding:5px 12px;border-radius:16px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:5px}
-.opt-btn:hover{background:var(--gt-pale);border-color:var(--gt-mid)}
-.opt-btn.active{background:var(--gt-forest);color:#fff;border-color:var(--gt-forest)}
-.opt-dot{width:7px;height:7px;border-radius:50%;display:inline-block}
-.cat-clear{background:rgba(255,255,255,.8);border:1.5px solid rgba(27,67,50,.15);color:var(--gt-muted);font-family:'DM Sans',sans-serif;font-size:10px;font-weight:600;padding:4px 10px;border-radius:5px;cursor:pointer;transition:all .2s;display:none;margin-left:2px}
-.cat-clear:hover{color:var(--gt-forest);border-color:var(--gt-mid)}
-.cat-clear.visible{display:inline-block}
-/* Geo filter specific */
-.geo-all-btn{background:rgba(255,255,255,.88);backdrop-filter:blur(8px);border:1.5px solid rgba(27,67,50,.2);color:var(--gt-forest);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;padding:5px 12px;border-radius:5px;cursor:pointer;transition:all .2s;flex-shrink:0;display:flex;align-items:center;gap:4px}
-.geo-all-btn:hover{background:var(--gt-pale);border-color:var(--gt-mid)}
-.geo-all-btn .chevron{display:inline-block;width:6px;height:6px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .2s;margin-bottom:1px}
-.geo-all-btn.open .chevron{transform:rotate(45deg)}
-.geo-inview-pill{background:rgba(255,255,255,.92);border:1.5px solid rgba(27,67,50,.15);color:var(--gt-forest);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;padding:4px 10px;border-radius:16px;cursor:pointer;transition:all .2s;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.1)}
-.geo-inview-pill:hover{background:var(--gt-pale);border-color:var(--gt-mid)}
-.geo-inview-pill.selected{background:var(--gt-forest);color:#fff;border-color:var(--gt-forest)}
-.geo-inview-pill.isolated{background:var(--gt-iso);color:#fff;border-color:var(--gt-iso)}
-.geo-inview-pill .pill-radio{display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid #fff;vertical-align:middle;margin-left:4px;flex-shrink:0}
-.geo-inview-pill .pill-radio.active{background:var(--gt-iso);border-color:#fff}
-.geo-inview-pill .pill-radio.fading{background:transparent;border-color:var(--gt-iso-hover);opacity:.5;transition:opacity 1s ease-out}
-.geo-inview-pill .pill-radio.fade-out{opacity:0}
-.geo-inview-pill.grayed{opacity:.4}
-.geo-more-btn{font-family:'DM Sans',sans-serif;font-size:10px;color:var(--gt-muted);cursor:pointer;padding:4px 6px;white-space:nowrap}
-.geo-more-btn:hover{color:var(--gt-forest)}
-.geo-more-tip{position:absolute;background:#fff;border:1px solid #ddd;border-radius:8px;padding:8px 12px;font-family:'DM Sans',sans-serif;font-size:11px;color:var(--gt-text);box-shadow:0 4px 12px rgba(0,0,0,.12);white-space:nowrap;z-index:30;display:none}
-/* Continent checklist */
-.geo-continent-section{margin-top:6px}
-.geo-continent-hdr{display:flex;align-items:center;gap:6px;padding:4px 0;cursor:pointer}
-.geo-continent-hdr:hover{color:var(--gt-mid)}
-.geo-continent-name{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;color:var(--gt-forest)}
-.geo-continent-count{font-size:9px;color:var(--gt-muted);font-weight:500}
-.geo-continent-actions{display:flex;gap:4px;margin-left:auto;align-items:center}
-.geo-sel-all{background:rgba(255,255,255,.8);border:1.5px solid rgba(27,67,50,.15);color:var(--gt-muted);font-family:'DM Sans',sans-serif;font-size:10px;font-weight:600;padding:3px 8px;border-radius:5px;cursor:pointer;transition:all .2s}
-.geo-sel-all:hover{color:var(--gt-forest);border-color:var(--gt-mid)}
-.geo-sel-all.all-selected{background:var(--gt-forest);color:#fff;border-color:var(--gt-forest)}
-.geo-country-list{max-height:240px;overflow-y:auto;padding:2px 0 2px 4px}
-.geo-country-item{display:flex;align-items:center;gap:8px;padding:3px 4px;cursor:pointer;border-radius:4px;font-family:'DM Sans',sans-serif;font-size:11px;color:var(--gt-text)}
-.geo-country-item:hover{background:var(--gt-pale)}
-.geo-country-item.grayed{opacity:.35}
-.geo-checkbox{width:14px;height:14px;border:1.5px solid var(--gt-muted);border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s}
-.geo-checkbox.checked{background:var(--gt-forest);border-color:var(--gt-forest)}
-.geo-checkbox.checked::after{content:'✓';color:#fff;font-size:10px;font-weight:700}
-.geo-radio{width:12px;height:12px;border:1.5px solid transparent;border-radius:50%;flex-shrink:0;cursor:pointer;transition:all .2s;opacity:0;margin-left:auto}
-.geo-country-item:hover .geo-radio{opacity:.5;border-color:var(--gt-iso-hover)}
-.geo-radio.active{opacity:1;background:var(--gt-iso);border-color:var(--gt-iso)}
-.geo-radio.fading{opacity:.5;border-color:var(--gt-iso-hover)}
-/* Desktop continent tab bar */
-.geo-tabbar-wrap{position:relative;margin-top:6px}
-.geo-tabbar{display:flex;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-radius:8px;border:1.5px solid rgba(27,67,50,.15);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-.geo-tab{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;color:var(--gt-forest);padding:6px 12px;cursor:pointer;border-right:1px solid rgba(27,67,50,.12);display:flex;align-items:center;gap:4px;transition:background .15s;white-space:nowrap;user-select:none}
-.geo-tab:last-child{border-right:none}
-.geo-tab:hover{background:var(--gt-pale)}
-.geo-tab.active{background:rgba(255,255,255,.98)}
-.geo-tab:not(.active):not(:hover){background:rgba(240,240,240,.7)}
-.geo-tab-badge{font-size:8px;font-weight:700;color:#fff;background:var(--gt-mid);min-width:14px;height:14px;line-height:14px;text-align:center;border-radius:7px;padding:0 3px;display:inline-block}
-.geo-tab-badge.empty{visibility:hidden}
-.geo-tab-dropdown{position:absolute;top:100%;left:0;right:0;margin-top:4px;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border:1.5px solid rgba(27,67,50,.15);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:20;padding:8px 10px;display:none}
-.geo-tab-dropdown.visible{display:block}
-.geo-tab-actions{display:flex;gap:6px;align-items:center;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #f0f0f0}
-.geo-tab-hover-actions{display:flex;gap:6px;align-items:center;padding:4px 6px}
-/* Mobile filter bar */
-.mobile-filter-bar{display:none;position:absolute;top:72px;left:12px;z-index:12;align-items:center;gap:8px}
-.mobile-filter-icon{background:var(--gt-forest);color:#fff;border:none;width:40px;height:40px;border-radius:50%;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;position:relative}
-.mobile-filter-icon svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round}
-.mobile-filter-icon .icon-badge{position:absolute;top:-4px;right:-4px;background:var(--gt-light);color:var(--gt-forest);font-size:10px;font-weight:700;min-width:18px;height:18px;line-height:18px;text-align:center;border-radius:9px;padding:0 4px;display:none}
-.mobile-clear-btn{background:rgba(255,255,255,.9);border:1.5px solid rgba(27,67,50,.2);color:var(--gt-forest);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;padding:5px 12px;border-radius:5px;cursor:pointer;display:none;backdrop-filter:blur(8px)}
-/* Mobile filter modal */
-.filter-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:50;background:rgba(27,67,50,.3);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:fadeIn .2s ease-out}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-.filter-panel{position:absolute;top:calc(60px + env(safe-area-inset-top,0px));left:12px;right:12px;background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.2);max-height:calc(100dvh - 80px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;animation:slideDown .25s ease-out}
-@keyframes slideDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
-.filter-panel-header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;border-bottom:1px solid #f0f0f0;flex-shrink:0}
-.filter-panel-title{font-family:'DM Serif Display',serif;font-size:18px;color:var(--gt-forest)}
-.filter-panel-close{background:none;border:none;font-size:22px;color:var(--gt-muted);cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center}
-.filter-panel-body{padding:12px 18px 14px;overflow-y:auto;flex:1}
-.mobile-cat-section{margin-bottom:14px}
-.mobile-cat-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.mobile-cat-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gt-muted)}
-.mobile-cat-clear{background:none;border:1px solid var(--gt-muted);font-size:10px;font-weight:600;color:var(--gt-muted);cursor:pointer;padding:2px 8px;border-radius:4px;display:none}
-.mobile-cat-clear.visible{display:block}
-.mobile-cat-options{display:flex;flex-wrap:wrap;gap:6px;row-gap:8px}
-.mobile-opt-btn{background:var(--gt-pale);border:1.5px solid transparent;color:var(--gt-forest);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;padding:6px 12px;border-radius:16px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px}
-.mobile-opt-btn.active{background:var(--gt-forest);color:#fff;border-color:var(--gt-forest)}
-.mobile-opt-btn .opt-dot{width:7px;height:7px;border-radius:50%}
-.filter-panel-footer{padding:10px 18px calc(14px + env(safe-area-inset-bottom,0px));border-top:1px solid #f0f0f0;flex-shrink:0;text-align:center}
-.filter-footer-stats{display:flex;gap:16px;margin-bottom:10px;justify-content:center}
-.filter-footer-stat{font-size:12px;color:var(--gt-muted)}
-.filter-footer-stat strong{color:var(--gt-forest);font-weight:600}
-.filter-footer-clear{background:none;border:1.5px solid var(--gt-muted);color:var(--gt-muted);padding:10px 20px;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;display:none}
-.filter-footer-clear.visible{display:inline-block}
-/* Attribution */
-.mapboxgl-ctrl-attrib{font-size:10px!important;opacity:.5;transition:opacity .2s}
-.mapboxgl-ctrl-attrib:hover{opacity:1}
-.mapboxgl-ctrl-logo{display:none!important}
-/* Stats bar */
-.stats-bar{position:absolute;bottom:16px;left:20px;z-index:10;display:flex;gap:10px}
-.stat-card{background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border:1px solid rgba(27,67,50,.1);border-radius:10px;padding:10px 16px;min-width:110px}
-.stat-value{font-family:'DM Serif Display',serif;font-size:20px;color:var(--gt-forest);line-height:1.2}
-.stat-label{font-size:10px;color:var(--gt-muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
-/* Back button */
-.back-btn{position:absolute;top:82px;right:20px;z-index:15;background:rgba(255,255,255,.92);border:1.5px solid rgba(27,67,50,.15);color:var(--gt-forest);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;backdrop-filter:blur(8px);display:none}
-.back-btn:hover{background:var(--gt-pale)}
-/* Overview card */
-.overview-card{position:absolute;z-index:20;background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.18);max-width:400px;width:calc(100% - 40px);overflow:hidden;display:none}
-.ov-header{background:var(--gt-forest);padding:14px 18px;color:#fff;display:flex;justify-content:space-between;align-items:center}
-.ov-title{font-family:'DM Serif Display',serif;font-size:18px}
-.ov-close{background:rgba(255,255,255,.15);border:none;color:#fff;width:28px;height:28px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.ov-close:hover{background:rgba(255,255,255,.3)}
-.ov-body{padding:14px 18px}
-.ov-stats{display:flex;gap:10px;margin-bottom:12px}
-.ov-stat{flex:1;text-align:center;padding:8px 0;background:var(--gt-pale);border-radius:8px}
-.ov-stat-value{font-family:'DM Serif Display',serif;font-size:18px;color:var(--gt-forest)}
-.ov-stat-label{font-size:9px;color:var(--gt-muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
-.ov-blurb{font-size:12px;line-height:1.6;color:#444;margin-bottom:12px}
-.ov-sidebar{font-size:11px;line-height:1.5;color:var(--gt-muted);padding-left:12px;border-left:3px solid var(--gt-light);margin-bottom:12px}
-.ov-filter-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 10px;background:var(--gt-pale);border-radius:8px;cursor:pointer}
-.ov-filter-check{width:16px;height:16px;border:2px solid var(--gt-forest);border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s}
-.ov-filter-check.checked{background:var(--gt-forest)}
-.ov-filter-check.checked::after{content:'✓';color:#fff;font-size:11px;font-weight:700}
-.ov-filter-label{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:var(--gt-forest)}
-.ov-zoom-btn{display:block;width:100%;background:var(--gt-forest);color:#fff;border:none;padding:10px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer}
-.ov-zoom-btn:hover{background:var(--gt-green)}
-/* Popup styles */
-.mapboxgl-popup-content{background:#fff;border-radius:12px;padding:0;box-shadow:0 8px 30px rgba(0,0,0,.15);min-width:260px;max-width:320px;font-family:'DM Sans',sans-serif;overflow:hidden}
-.mapboxgl-popup-close-button{font-size:20px;color:#fff;right:8px;top:6px;z-index:2;width:28px;height:28px}
-.popup-header{background:var(--gt-forest);padding:12px 14px;color:#fff}
-.popup-deal-type{font-size:9px;text-transform:uppercase;letter-spacing:.08em;opacity:.7;margin-bottom:3px}
-.popup-title{font-family:'DM Serif Display',serif;font-size:14px;line-height:1.3}
-.popup-body{padding:10px 14px}
-.popup-row{display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:12px}
-.popup-row:last-child{border-bottom:none}
-.popup-label{color:var(--gt-muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em}
-.popup-value{font-weight:500;text-align:right;max-width:160px}
-.popup-sector-tag{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:500}
-.popup-notes{margin-top:6px;padding-top:6px;border-top:1px solid #f0f0f0;font-size:11px;color:var(--gt-muted);line-height:1.5}
-/* Mobile responsive */
-@media(max-width:640px){
-#map-container{width:100%;height:100%;border-radius:0;top:0;left:0;transform:none}
-.map-header{padding:calc(14px + env(safe-area-inset-top)) 14px 14px}.map-title{font-size:18px}.map-subtitle{font-size:11px}
-.header-logo{height:30px}
-.filter-system{display:none}.mobile-filter-bar{display:flex;top:calc(76px + env(safe-area-inset-top))}
-.stats-bar{left:12px;bottom:calc(30px + env(safe-area-inset-bottom));gap:6px}.stat-card{padding:6px 10px;min-width:78px}.stat-value{font-size:16px}.stat-label{font-size:9px}
-.back-btn{top:calc(76px + env(safe-area-inset-top));right:12px;bottom:auto;font-size:11px;padding:7px 12px}
-.overview-card{max-width:calc(100% - 24px)}
-.mapboxgl-popup-content{min-width:230px;max-width:270px}.popup-title{font-size:13px}.popup-body{padding:8px 12px}.popup-row{font-size:11px}.popup-notes{font-size:10px}
-.mapboxgl-ctrl-bottom-right{bottom:env(safe-area-inset-bottom,0px)!important}
-}
-</style>
-</head>
-<body>
-<div id="map-container">
-<div class="map-header"><div class="header-top"><div class="header-brand"><svg class="header-logo" viewBox="0 0 1500 1500" xmlns="http://www.w3.org/2000/svg"><g transform="translate(110,0)"><g><g transform="translate(11,0)"><g fill="#fff" fill-opacity="1"><g transform="translate(0.939,1253.113)"><path d="M 165.516 -800.563 C 165.516 -678.227 192.797 -616.758 247.359 -616.156 C 256.953 -616.156 271.946 -625.148 292.344 -643.141 C 326.52 -668.328 355.301 -681.82 378.688 -683.625 C 417.07 -683.625 438.063 -665.332 441.656 -628.75 C 443.457 -604.164 432.063 -584.977 407.469 -571.188 C 394.883 -564.594 381.691 -561.297 367.891 -561.297 C 299.535 -561.297 250.066 -566.391 219.484 -576.578 C 144.523 -601.172 92.953 -651.547 64.766 -727.703 C 52.172 -763.078 45.875 -800.555 45.875 -840.141 C 45.875 -954.078 99.242 -1026.035 205.984 -1056.016 C 238.961 -1065.609 274.941 -1070.406 313.922 -1070.406 L 995.75 -1070.406 C 1061.719 -1070.406 1104.297 -1084.195 1123.484 -1111.781 C 1136.078 -1130.977 1142.375 -1159.766 1142.375 -1198.141 L 1180.156 -1198.141 C 1203.539 -1119.586 1203.238 -1067.863 1179.25 -1042.969 C 1155.258 -1018.082 1115.383 -1003.844 1059.625 -1000.25 L 719.609 -1000.25 L 719.609 -188 C 719.609 -132.821 723.504 -96.988 731.297 -80.5 C 739.086 -64.008 757.379 -52.77 786.172 -46.781 L 838.344 -36.875 L 838.344 0 L 489.328 0 L 489.328 -37.781 L 551.391 -51.266 C 573.578 -56.066 587.375 -62.961 592.781 -71.953 C 597.571 -82.148 599.969 -104.039 599.969 -137.625 L 599.969 -1000.25 L 303.141 -1000.25 C 233.578 -1000.25 190.098 -958.875 172.703 -876.125 C 167.91 -852.727 165.516 -827.539 165.516 -800.563 Z"/></g></g></g></g><g transform="translate(0,447)"><g fill="#fff" fill-opacity="1"><g transform="translate(1114.484,1046.847)"><path d="M -408.188 -573.547 L -408.188 -1015.984 L -399.25 -1015.984 C -399.25 -991.16 -390.555 -970.055 -373.172 -952.672 C -355.797 -935.297 -334.691 -926.609 -309.859 -926.609 L 0 -926.609 C -10.926 -908.734 -19.863 -889.363 -26.813 -868.5 C -33.77 -847.645 -37.25 -823.316 -37.25 -795.516 C -37.25 -759.754 -34.266 -728.219 -28.297 -700.906 C -22.336 -673.602 -16.129 -646.539 -9.672 -619.719 C -3.223 -592.906 0 -562.613 0 -528.844 C 0 -464.289 -13.406 -403.707 -40.219 -347.094 C -67.031 -290.488 -104.52 -240.582 -152.688 -197.375 C -200.863 -154.176 -256.484 -120.41 -319.547 -96.078 C -382.609 -71.754 -449.895 -59.594 -521.406 -59.594 C -592.906 -59.594 -660.188 -71.754 -723.25 -96.078 C -786.321 -120.41 -841.941 -154.176 -890.109 -197.375 C -938.273 -240.582 -975.766 -290.488 -1002.578 -347.094 C -1029.391 -403.707 -1042.797 -464.289 -1042.797 -528.844 C -1042.797 -582.477 -1033.609 -633.129 -1015.234 -680.797 C -996.867 -728.473 -973.285 -770.93 -944.484 -808.172 C -915.68 -845.41 -884.395 -874.461 -850.625 -895.328 C -834.738 -905.254 -818.352 -912.945 -801.469 -918.406 C -784.582 -923.875 -768.195 -926.609 -752.313 -926.609 C -708.613 -926.609 -671.117 -910.961 -639.828 -879.672 C -608.547 -848.391 -592.906 -810.898 -592.906 -767.203 C -592.906 -723.504 -608.547 -686.016 -639.828 -654.734 C -671.117 -623.453 -708.613 -607.813 -752.313 -607.813 C -777.133 -607.813 -798.234 -612.281 -815.609 -621.219 C -832.992 -630.156 -848.391 -640.332 -861.797 -651.75 C -875.203 -663.176 -888.609 -673.359 -902.016 -682.297 C -915.43 -691.234 -931.078 -695.703 -948.953 -695.703 C -972.785 -695.703 -990.91 -685.27 -1003.328 -664.406 C -1015.742 -643.551 -1023.938 -619.961 -1027.906 -593.641 C -1031.875 -567.328 -1033.859 -545.727 -1033.859 -528.844 C -1033.859 -494.082 -1010.77 -462.051 -964.594 -432.75 C -918.414 -403.457 -856.594 -380.117 -779.125 -362.734 C -701.656 -345.359 -615.75 -336.672 -521.406 -336.672 C -427.051 -336.672 -341.141 -345.359 -263.672 -362.734 C -186.211 -380.117 -124.391 -403.457 -78.203 -432.75 C -32.023 -462.051 -8.938 -494.082 -8.938 -528.844 C -8.938 -545.727 -10.922 -567.828 -14.891 -595.141 C -18.867 -622.453 -27.313 -645.547 -40.219 -664.422 L -309.859 -664.422 C -334.691 -664.422 -355.797 -655.727 -373.172 -638.344 C -390.555 -620.969 -399.25 -599.367 -399.25 -573.547 Z"/></g></g></g></g></svg><div><div class="map-title">Money Map</div><div class="map-subtitle">Capital flows in the impact economy</div></div></div><div class="beta-badge">Beta</div></div></div>
-<div class="filter-system" id="filterSystem"><div class="filter-top-row" id="filterTopRow"></div><div class="filter-options" id="filterOptions"></div></div>
-<div class="mobile-filter-bar" id="mobileFilterBar"><button class="mobile-filter-icon" id="mobileFilterIcon"><svg viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2" fill="#fff" stroke="#fff"/><circle cx="15" cy="12" r="2" fill="#fff" stroke="#fff"/><circle cx="11" cy="18" r="2" fill="#fff" stroke="#fff"/></svg><span class="icon-badge" id="mobileIconBadge"></span></button><button class="mobile-clear-btn" id="mobileClearBtn">Clear</button></div>
-<div class="filter-overlay" id="filterOverlay"><div class="filter-panel"><div class="filter-panel-header"><div class="filter-panel-title">Filters</div><button class="filter-panel-close" id="filterPanelClose">&times;</button></div><div class="filter-panel-body" id="filterPanelBody"></div><div class="filter-panel-footer"><div class="filter-footer-stats" id="filterFooterStats"></div><button class="filter-footer-clear" id="filterFooterClear">Clear all filters</button></div></div></div>
-<button class="back-btn" id="backBtn">← View Brazil</button>
-<div class="overview-card" id="overviewCard"><div class="ov-header"><div class="ov-title" id="ovTitle"></div><button class="ov-close" id="ovClose">&times;</button></div><div class="ov-body"><div class="ov-stats"><div class="ov-stat"><div class="ov-stat-value" id="ovDeals">—</div><div class="ov-stat-label">Deals</div></div><div class="ov-stat"><div class="ov-stat-value" id="ovCapital">—</div><div class="ov-stat-label">Capital (USD)</div></div></div><div class="ov-blurb" id="ovBlurb"></div><div class="ov-sidebar" id="ovSidebar"></div><div class="ov-filter-row" id="ovFilterRow" style="display:none"><div class="ov-filter-check" id="ovFilterCheck"></div><div class="ov-filter-label" id="ovFilterLabel"></div></div><button class="ov-zoom-btn" id="ovZoomBtn">View</button></div></div>
-<div class="stats-bar" id="stats"></div>
-<div id="map"></div>
-</div>
-<script>
 mapboxgl.accessToken='pk.eyJ1IjoiZ2l2aW5ndHJlZSIsImEiOiJjbXA3MGdjczcwMXF1MnFwdjBzZ2lsdnc1In0.rphe-zIBwe1nLX-wKXXPgw';
 const SC={energy:'#F59E0B',climate:'#10B981',agritech:'#84CC16','economic-inclusion':'#6366F1',infrastructure:'#8B5CF6',conservation:'#059669',fintech:'#3B82F6',housing:'#EC4899',health:'#EF4444','circular-economy':'#F97316',other:'#9CA3AF'};
 const SL={energy:'Energy',climate:'Climate',agritech:'Agritech','economic-inclusion':'Economic Inclusion',infrastructure:'Infrastructure',conservation:'Conservation',fintech:'Fintech',housing:'Housing',health:'Health','circular-economy':'Circular Economy'};
 const SIZE_RANGES=[{id:'under1m',label:'<$1M',min:0,max:1e6},{id:'1to10m',label:'$1-10M',min:1e6,max:1e7},{id:'10to50m',label:'$10-50M',min:1e7,max:5e7},{id:'50to250m',label:'$50-250M',min:5e7,max:2.5e8},{id:'over250m',label:'$250M+',min:2.5e8,max:Infinity},{id:'undisclosed',label:'Undisclosed',min:null,max:null}];
 const TYPE_OPTIONS=['Investment','Fund Launch','Loan','Partnership','Grant'];
 const SOURCE_OPTIONS=['VC/PE','DFI','Family Office','Foundation','Government','Corporate'];
-const CITIES={"S\u00e3o Paulo":{coords:[-46.6333, -23.5505],state:"SP",blurb:"S\u00e3o Paulo is the financial capital of Latin America and the epicenter of Brazil's impact investing ecosystem.",sidebar:"Key hubs: Vox Capital, eB Capital, Fama Re.Capital, MOV Investimentos, Lightrock LatAm. Hosts Impacta Mais (1,200+ delegates)."},
+const CITIES={"São Paulo":{coords:[-46.6333, -23.5505],state:"SP",blurb:"São Paulo is the financial capital of Latin America and the epicenter of Brazil's impact investing ecosystem.",sidebar:"Key hubs: Vox Capital, eB Capital, Fama Re.Capital, MOV Investimentos, Lightrock LatAm. Hosts Impacta Mais (1,200+ delegates)."},
 "Rio de Janeiro":{coords:[-43.1729, -22.9068],state:"RJ",blurb:"Rio de Janeiro anchors Brazil's social finance and crowdlending innovation.",sidebar:"Sitawi Finance for Good (16 years), pioneering crowdlending with a 4.27% default rate."},
 "Santos":{coords:[-46.3336, -23.9608],state:"SP",blurb:"Santos is Latin America's largest port. Global DFIs are investing in port modernization.",sidebar:"J.P. Morgan DFI financing new container terminal capacity for agricultural supply chains."},
-"Bras\u00edlia":{coords:[-47.8919, -15.7975],state:"DF",blurb:"Brazil's federal capital shapes national impact economy policy.",sidebar:"Eco Invest Brasil (IDB/FCDO) creates FX hedging mechanisms to mobilize private capital for climate."},
+"Brasília":{coords:[-47.8919, -15.7975],state:"DF",blurb:"Brazil's federal capital shapes national impact economy policy.",sidebar:"Eco Invest Brasil (IDB/FCDO) creates FX hedging mechanisms to mobilize private capital for climate."},
 "New York City":{coords:[-74.006, 40.7128],state:"NY",blurb:"New York is the largest impact investing market in the US, with $40M+ in city-backed catalytic capital and dozens of diversity-focused VC firms.",sidebar:"Key players: NYCEDC Catalyst Fund, Harlem Capital, Open Opportunity Fund, Maycomb Capital. Hosts SOCAP satellite events and Climate Week NYC."},
-"London":{coords:[-0.1276, 51.5074],state:"England",blurb:"London is positioning itself as the global capital of impact investing, with the UK market surpassing \u00a311B in 2024 and new government-backed vehicles like the \u00a3500M Better Futures Fund.",sidebar:"Key players: Bridges Fund Management (\u00a31.8B+ raised), Better Society Capital, Big Society Capital. Home to the Impact Investor Global Summit."},
+"London":{coords:[-0.1276, 51.5074],state:"England",blurb:"London is positioning itself as the global capital of impact investing, with the UK market surpassing £11B in 2024 and new government-backed vehicles like the £500M Better Futures Fund.",sidebar:"Key players: Bridges Fund Management (£1.8B+ raised), Better Society Capital, Big Society Capital. Home to the Impact Investor Global Summit."},
 "Singapore":{coords:[103.8198, 1.3521],state:"",blurb:"Singapore is the hub for impact investing across Asia, anchored by Temasek's ABC World framework and a growing ecosystem of pan-Asian impact PE funds.",sidebar:"Key players: ABC Impact (Temasek-backed, $600M+ Fund II), DBS, UOB. Centre for Impact Investing and Practices. MAS green finance initiatives."},
 "Accra":{coords:[-0.187, 5.6037],state:"Greater Accra",blurb:"Accra is West Africa's emerging impact investing hub, home to the Ci-Gaba Fund-of-Funds and the annual Africa Impact Summit drawing 500+ delegates from 20+ countries.",sidebar:"Key players: Impact Investing Ghana (IIGh), Savanna Impact Advisory, FSD Africa. Government launched Climate Financing Division and Green/Social Bond Framework."},
 "Sydney":{coords:[151.2093, -33.8688],state:"NSW",blurb:"Sydney anchors Australia's rapidly growing impact investing market, with AUD 9B in clean energy commitments in 2024 and the government-backed Clean Energy Finance Corporation deploying record capital.",sidebar:"Key players: CEFC ($32.5B allocation), Australian Impact Investments, NorthStar Impact Funds. Hosts the annual Impact Investment Summit at ICC Sydney."},
 "Tokyo":{coords:[139.6917, 35.6895],state:"",blurb:"Tokyo is the center of Japan's growing impact investing ecosystem, backed by government-private sector partnerships and JICA's expanding global impact portfolio. Japan's National Advisory Board (GSG member) is driving policy alignment.",sidebar:"Key players: SIIF (Social Innovation & Investment Foundation), JICA, Shinsei Impact, GSG Impact Japan. Themes: aging society solutions, financial inclusion across Asia, clean energy transition."}};
-const COUNTRY_DATA={"Brazil":{coords:[-51.9, -14.2],labelCoords:[-51.9, -8.5],blurb:"Brazil is Latin America's largest impact investing market and the sixth-largest economy globally. The ecosystem spans over a dozen dedicated fund managers, government-backed programs, and a national advisory board.",sidebar:"Key cities: S\u00e3o Paulo (financial hub), Rio (social finance), Bras\u00edlia (policy), Santos (trade). Themes: climate, energy transition, economic inclusion, regenerative agriculture, conservation.",zoomTo:{"center": [-49.5, -16], "zoom": 4.2}},
+const COUNTRY_DATA={"Brazil":{coords:[-51.9, -14.2],labelCoords:[-51.9, -8.5],blurb:"Brazil is Latin America's largest impact investing market and the sixth-largest economy globally. The ecosystem spans over a dozen dedicated fund managers, government-backed programs, and a national advisory board.",sidebar:"Key cities: São Paulo (financial hub), Rio (social finance), Brasília (policy), Santos (trade). Themes: climate, energy transition, economic inclusion, regenerative agriculture, conservation.",zoomTo:{"center": [-49.5, -16], "zoom": 4.2}},
 "United States":{coords:[-95.7, 37.1],labelCoords:[-98, 39.5],blurb:"The US is the world's largest impact investing market, with over $1 trillion in assets under management. New York City alone has deployed $65M+ through city-backed impact funds targeting diverse entrepreneurship.",sidebar:"Key hubs: NYC (Catalyst Fund, Harlem Capital), San Francisco (SOCAP), Boston (impact PE). Themes: economic inclusion, diverse founders, climate tech, community development.",zoomTo:{"center": [-95.7, 38], "zoom": 4}},
-"United Kingdom":{coords:[-1.5, 52.5],labelCoords:[-2.5, 54],blurb:"The UK impact investing market topped \u00a311B in 2024, growing 10% annually. London is home to pioneering firms like Bridges Fund Management and government-backed institutions channeling capital into social outcomes.",sidebar:"Key players: Bridges FM (\u00a31.8B+), Better Society Capital, Big Society Capital. Policy: \u00a3500M Better Futures Fund, Office for the Impact Economy. Themes: social housing, inclusive growth, climate.",zoomTo:{"center": [-2, 54], "zoom": 5.5}},
+"United Kingdom":{coords:[-1.5, 52.5],labelCoords:[-2.5, 54],blurb:"The UK impact investing market topped £11B in 2024, growing 10% annually. London is home to pioneering firms like Bridges Fund Management and government-backed institutions channeling capital into social outcomes.",sidebar:"Key players: Bridges FM (£1.8B+), Better Society Capital, Big Society Capital. Policy: £500M Better Futures Fund, Office for the Impact Economy. Themes: social housing, inclusive growth, climate.",zoomTo:{"center": [-2, 54], "zoom": 5.5}},
 "Singapore":{coords:[103.8, 1.35],labelCoords:[103.8, 1.35],blurb:"Singapore punches above its weight in impact investing, anchored by Temasek's multi-billion-dollar commitment through ABC Impact and supported by MAS green finance initiatives and a growing ecosystem of pan-Asian impact funds.",sidebar:"Key players: ABC Impact ($600M+ Fund II), Temasek Trust, DBS, UOB. Themes: climate/water solutions, sustainable food, healthcare, financial/digital inclusion across Asia.",zoomTo:{"center": [103.8, 1.35], "zoom": 11}},
-"Ghana":{coords:[-1.0, 7.9],labelCoords:[-1.2, 7.5],blurb:"Ghana is pioneering domestic capital mobilization for impact in West Africa. The Ci-Gaba Fund-of-Funds is the region's first domestically domiciled private fund of funds, unlocking pension capital for SMEs across Ghana, Nigeria, Senegal, and C\u00f4te d'Ivoire.",sidebar:"Key players: Impact Investing Ghana (GSG National Partner), Savanna Impact Advisory, FSD Africa. Themes: SME finance, pension capital mobilization, blended finance, gender lens investing.",zoomTo:{"center": [-1.5, 7.5], "zoom": 7}},
+"Ghana":{coords:[-1.0, 7.9],labelCoords:[-1.2, 7.5],blurb:"Ghana is pioneering domestic capital mobilization for impact in West Africa. The Ci-Gaba Fund-of-Funds is the region's first domestically domiciled private fund of funds, unlocking pension capital for SMEs across Ghana, Nigeria, Senegal, and Côte d'Ivoire.",sidebar:"Key players: Impact Investing Ghana (GSG National Partner), Savanna Impact Advisory, FSD Africa. Themes: SME finance, pension capital mobilization, blended finance, gender lens investing.",zoomTo:{"center": [-1.5, 7.5], "zoom": 7}},
 "Australia":{coords:[134, -25.3],labelCoords:[134, -25],blurb:"Australia's impact investing market is accelerating, with AUD 9B in clean energy commitments in 2024 and the government-backed CEFC deploying record AUD 4.7B in a single year. The market spans renewable energy, social housing, and First Nations investment.",sidebar:"Key players: CEFC ($32.5B allocation), Australian Impact Investments, Infradebt, Impact Investing Australia. Themes: renewables, social/affordable housing, First Nations, energy transition.",zoomTo:{"center": [134, -25], "zoom": 4.5}},
 "Japan":{coords:[138.2, 36.2],labelCoords:[138.2, 37.5],blurb:"Japan's impact investing market has grown rapidly since the government's 2014 social impact commitment, with JICA emerging as a major global DFI deploying capital across Asia and Africa. The Social Innovation and Investment Foundation anchors the domestic ecosystem.",sidebar:"Key players: SIIF, JICA ($40M+ impact allocations), Shinsei Impact, GSG Impact Japan (NAB). Policy: Tokyo Metropolitan Government public-private impact growth fund. Themes: aging society, financial inclusion, clean energy.",zoomTo:{"center": [138, 37], "zoom": 5.5}}};
 const deals=[
-{investor:"I Squared Capital",recipient:"\u00d3rigo Energia",dealType:"Investment",amount:400000000.0,sector:"energy",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"Jan 2024",year:2024,source:"Reuters",notes:"49% stake in Brazil's largest distributed solar generation platform."},
-{investor:"Augment Infrastructure",recipient:"\u00d3rigo Energia",dealType:"Investment",amount:140000000.0,sector:"energy",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2022",year:2022,source:"\u00d3rigo Energia IR",notes:"BRL 700M in renewable energy infrastructure investment."},
-{investor:"eB Capital",recipient:"Bioo",dealType:"Investment",amount:50000000.0,sector:"climate",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2023",year:2023,source:"ImpactAlpha",notes:"Animal protein waste \u2192 biomethane. Energy transition fund."},
-{investor:"Vox Capital / TNC / Moore Fdn",recipient:"Amazon NBS Fund",dealType:"Fund Launch",amount:250000000.0,sector:"conservation",sourceType:"Foundation",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"ImpactAlpha",notes:"Catalytic capital for blended finance around the Amazon."},
-{investor:"Wright Capital",recipient:"NBS/Regen Ag/Climate FoF",dealType:"Fund Launch",amount:35000000.0,sector:"climate",sourceType:"Family Office",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"ImpactAlpha",notes:"Manages wealth of 40+ Brazilian families."},
-{investor:"Fama Re.Capital",recipient:"LatAm Climate Turnaround Fund",dealType:"Fund Launch",amount:null,sector:"climate",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2023",year:2023,source:"ImpactAlpha",notes:"Invests in high-emitting companies to push decarbonization."},
-{investor:"Fama Re.Capital",recipient:"Gaia Socio-Bioeconomy Fund",dealType:"Fund Launch",amount:null,sector:"agritech",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2024",year:2024,source:"ImpactAlpha",notes:"Affordable loans to small regenerative agriculture businesses."},
-{investor:"InMotion Ventures (JLR)",recipient:"Energy Source",dealType:"Investment",amount:1200000.0,sector:"circular-economy",sourceType:"Corporate",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"Feb 2024",year:2024,source:"TechFundingNews",notes:"Lithium battery recycling. InMotion's first Brazil investment."},
-{investor:"Est\u00edmulo",recipient:"3,400+ SMEs",dealType:"Loan",amount:40000000.0,sector:"economic-inclusion",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2024",year:2024,source:"ImpactAlpha / HBS",notes:"Blended finance credit fund for low-income regions."},
-{investor:"Traive / Instituto Folio",recipient:"GAN Fund",dealType:"Fund Launch",amount:50000000.0,sector:"agritech",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"Climate Policy Initiative",notes:"Hybrid FIDC/CRA for bioinputs in regenerative agriculture."},
-{investor:"BNDES",recipient:"Eve Air Mobility (Embraer)",dealType:"Loan",amount:40000000.0,sector:"infrastructure",sourceType:"DFI",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"BayBrazil",notes:"R$200M for eVTOL aircraft R&D and certification."},
-{investor:"Crescera Capital",recipient:"Colmeia",dealType:"Investment",amount:3600000.0,sector:"housing",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"BayBrazil",notes:"R$18M for sustainable construction solutions."},
-{investor:"Co-Capital / Din4mo / Oogway",recipient:"M\u00fatua",dealType:"Investment",amount:null,sector:"fintech",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"ImpactAlpha",notes:"AI-powered impact data mapping platform. SDG/IRIS+ metrics."},
-{investor:"Lightrock",recipient:"Portfolio (12+ ventures)",dealType:"Investment",amount:700000000.0,sector:"economic-inclusion",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2024",year:2024,source:"ImpactAlpha",notes:"$700M deployed across LatAm. Backed by Liechtenstein royal family."},
+{investor:"I Squared Capital",recipient:"Órigo Energia",dealType:"Investment",amount:400000000.0,sector:"energy",sourceType:"VC/PE",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"Jan 2024",year:2024,source:"Reuters",notes:"49% stake in Brazil's largest distributed solar generation platform."},
+{investor:"Augment Infrastructure",recipient:"Órigo Energia",dealType:"Investment",amount:140000000.0,sector:"energy",sourceType:"VC/PE",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2022",year:2022,source:"Órigo Energia IR",notes:"BRL 700M in renewable energy infrastructure investment."},
+{investor:"eB Capital",recipient:"Bioo",dealType:"Investment",amount:50000000.0,sector:"climate",sourceType:"VC/PE",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2023",year:2023,source:"ImpactAlpha",notes:"Animal protein waste → biomethane. Energy transition fund."},
+{investor:"Vox Capital / TNC / Moore Fdn",recipient:"Amazon NBS Fund",dealType:"Fund Launch",amount:250000000.0,sector:"conservation",sourceType:"Foundation",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"ImpactAlpha",notes:"Catalytic capital for blended finance around the Amazon."},
+{investor:"Wright Capital",recipient:"NBS/Regen Ag/Climate FoF",dealType:"Fund Launch",amount:35000000.0,sector:"climate",sourceType:"Family Office",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"ImpactAlpha",notes:"Manages wealth of 40+ Brazilian families."},
+{investor:"Fama Re.Capital",recipient:"LatAm Climate Turnaround Fund",dealType:"Fund Launch",amount:null,sector:"climate",sourceType:"VC/PE",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2023",year:2023,source:"ImpactAlpha",notes:"Invests in high-emitting companies to push decarbonization."},
+{investor:"Fama Re.Capital",recipient:"Gaia Socio-Bioeconomy Fund",dealType:"Fund Launch",amount:null,sector:"agritech",sourceType:"VC/PE",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2024",year:2024,source:"ImpactAlpha",notes:"Affordable loans to small regenerative agriculture businesses."},
+{investor:"InMotion Ventures (JLR)",recipient:"Energy Source",dealType:"Investment",amount:1200000.0,sector:"circular-economy",sourceType:"Corporate",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"Feb 2024",year:2024,source:"TechFundingNews",notes:"Lithium battery recycling. InMotion's first Brazil investment."},
+{investor:"Estímulo",recipient:"3,400+ SMEs",dealType:"Loan",amount:40000000.0,sector:"economic-inclusion",sourceType:"VC/PE",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2024",year:2024,source:"ImpactAlpha / HBS",notes:"Blended finance credit fund for low-income regions."},
+{investor:"Traive / Instituto Folio",recipient:"GAN Fund",dealType:"Fund Launch",amount:50000000.0,sector:"agritech",sourceType:"VC/PE",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"Climate Policy Initiative",notes:"Hybrid FIDC/CRA for bioinputs in regenerative agriculture."},
+{investor:"BNDES",recipient:"Eve Air Mobility (Embraer)",dealType:"Loan",amount:40000000.0,sector:"infrastructure",sourceType:"DFI",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"BayBrazil",notes:"R$200M for eVTOL aircraft R&D and certification."},
+{investor:"Crescera Capital",recipient:"Colmeia",dealType:"Investment",amount:3600000.0,sector:"housing",sourceType:"VC/PE",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"BayBrazil",notes:"R$18M for sustainable construction solutions."},
+{investor:"Co-Capital / Din4mo / Oogway",recipient:"Mútua",dealType:"Investment",amount:null,sector:"fintech",sourceType:"VC/PE",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"ImpactAlpha",notes:"AI-powered impact data mapping platform. SDG/IRIS+ metrics."},
+{investor:"Lightrock",recipient:"Portfolio (12+ ventures)",dealType:"Investment",amount:700000000.0,sector:"economic-inclusion",sourceType:"VC/PE",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2024",year:2024,source:"ImpactAlpha",notes:"$700M deployed across LatAm. Backed by Liechtenstein royal family."},
 {investor:"Sitawi Finance for Good",recipient:"Na'kau (+ portfolio)",dealType:"Loan",amount:null,sector:"economic-inclusion",sourceType:"DFI",city:"Rio de Janeiro",state:"RJ",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"Devex",notes:"Crowdlending platform. 'Empathetic capital' model. 4.27% default rate."},
 {investor:"J.P. Morgan DFI",recipient:"DP World (container terminal)",dealType:"Investment",amount:null,sector:"infrastructure",sourceType:"DFI",city:"Santos",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"Devex",notes:"12.5M metric tons grain/fertilizer capacity. $2.5T sustainable dev push."},
-{investor:"Eco Invest Brasil (Gov/IDB/FCDO)",recipient:"Climate projects (program)",dealType:"Partnership",amount:null,sector:"climate",sourceType:"DFI",city:"Bras\u00edlia",state:"DF",country:"Brazil",continent:"South America",date:"2024",year:2024,source:"OECD / ImpactAlpha",notes:"FX hedging program. Private banks bid for public climate funding."},
-{investor:"Eqwow Ventures",recipient:"Healthcare/Fintech/Energy",dealType:"Fund Launch",amount:null,sector:"health",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"ImpactAlpha",notes:"LatAm talent, asset light, regional expansion thesis."},
-{investor:"Potencia Ventures (Kelly Michel)",recipient:"50+ impact funds incl. Vox, Artemisia",dealType:"Investment",amount:null,sector:"economic-inclusion",sourceType:"Foundation",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2002-present",year:2024,source:"ImpactAlpha",notes:"Portland-based endowment. Ecosystem catalyst. 30+ direct investments."},
-{investor:"XP Asset Management (Infra V)",recipient:"Eveo",dealType:"Investment",amount:20000000.0,sector:"infrastructure",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"BayBrazil",notes:"R$100M for private cloud and data center. 31.85% stake."},
-{investor:"Meraki Impact",recipient:"Smallholder finance (Brazil)",dealType:"Investment",amount:null,sector:"agritech",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2024",year:2024,source:"ImpactAlpha / Toniic",notes:"Catalytic capital. Closing capital gap for smallholder finance."},
-{investor:"Maya Capital",recipient:"Portfolio (Brazil VC)",dealType:"Fund Launch",amount:null,sector:"fintech",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"ImpactAlpha",notes:"LatAm-focused fund actively raising capital."},
-{investor:"Vox Capital",recipient:"Tech for Good Growth II",dealType:"Fund Launch",amount:null,sector:"economic-inclusion",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"Vox Capital",notes:"Currently raising. 7th VC fund. Seed-stage focus."},
+{investor:"Eco Invest Brasil (Gov/IDB/FCDO)",recipient:"Climate projects (program)",dealType:"Partnership",amount:null,sector:"climate",sourceType:"DFI",city:"Brasília",state:"DF",country:"Brazil",continent:"South America",date:"2024",year:2024,source:"OECD / ImpactAlpha",notes:"FX hedging program. Private banks bid for public climate funding."},
+{investor:"Eqwow Ventures",recipient:"Healthcare/Fintech/Energy",dealType:"Fund Launch",amount:null,sector:"health",sourceType:"VC/PE",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"ImpactAlpha",notes:"LatAm talent, asset light, regional expansion thesis."},
+{investor:"Potencia Ventures (Kelly Michel)",recipient:"50+ impact funds incl. Vox, Artemisia",dealType:"Investment",amount:null,sector:"economic-inclusion",sourceType:"Foundation",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2002-present",year:2024,source:"ImpactAlpha",notes:"Portland-based endowment. Ecosystem catalyst. 30+ direct investments."},
+{investor:"XP Asset Management (Infra V)",recipient:"Eveo",dealType:"Investment",amount:20000000.0,sector:"infrastructure",sourceType:"VC/PE",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"BayBrazil",notes:"R$100M for private cloud and data center. 31.85% stake."},
+{investor:"Meraki Impact",recipient:"Smallholder finance (Brazil)",dealType:"Investment",amount:null,sector:"agritech",sourceType:"VC/PE",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2024",year:2024,source:"ImpactAlpha / Toniic",notes:"Catalytic capital. Closing capital gap for smallholder finance."},
+{investor:"Maya Capital",recipient:"Portfolio (Brazil VC)",dealType:"Fund Launch",amount:null,sector:"fintech",sourceType:"VC/PE",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"ImpactAlpha",notes:"LatAm-focused fund actively raising capital."},
+{investor:"Vox Capital",recipient:"Tech for Good Growth II",dealType:"Fund Launch",amount:null,sector:"economic-inclusion",sourceType:"VC/PE",city:"São Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2025",year:2025,source:"Vox Capital",notes:"Currently raising. 7th VC fund. Seed-stage focus."},
 {investor:"NYCEDC",recipient:"NYC Catalyst Fund II (11+ fund managers)",dealType:"Fund Launch",amount:25000000.0,sector:"economic-inclusion",sourceType:"Government",city:"New York City",state:"NY",country:"United States",continent:"North America",date:"2025",year:2025,source:"NYCEDC",notes:"Impact investing vehicle for diverse entrepreneurship and economic mobility. Expected to catalyze $125M+."},
 {investor:"Harlem Capital",recipient:"Diverse founders (75+ portfolio cos)",dealType:"Fund Launch",amount:150000000.0,sector:"economic-inclusion",sourceType:"VC/PE",city:"New York City",state:"NY",country:"United States",continent:"North America",date:"2024",year:2024,source:"NYCEDC / Harlem Capital",notes:"Diversity-focused VC. Mission: invest in 1,000 diverse founders over 20 years."},
-{investor:"Bridges Fund Management",recipient:"Inclusive Growth Fund (UK social enterprises)",dealType:"Fund Launch",amount:82000000.0,sector:"economic-inclusion",sourceType:"VC/PE",city:"London",state:"England",country:"United Kingdom",continent:"Europe",date:"2024",year:2024,source:"Impact Investor",notes:"\u00a365M seeded from Bridges Evergreen. Purpose-driven businesses for vulnerable groups."},
+{investor:"Bridges Fund Management",recipient:"Inclusive Growth Fund (UK social enterprises)",dealType:"Fund Launch",amount:82000000.0,sector:"economic-inclusion",sourceType:"VC/PE",city:"London",state:"England",country:"United Kingdom",continent:"Europe",date:"2024",year:2024,source:"Impact Investor",notes:"£65M seeded from Bridges Evergreen. Purpose-driven businesses for vulnerable groups."},
 {investor:"Bridges Fund Management",recipient:"Alina Homecare",dealType:"Investment",amount:null,sector:"health",sourceType:"VC/PE",city:"London",state:"England",country:"United Kingdom",continent:"Europe",date:"2025",year:2025,source:"Bridges FM",notes:"UK home care for vulnerable elderly. Part of Bridges' Inclusive Growth strategy."},
 {investor:"ABC Impact (Temasek-backed)",recipient:"Fund II (pan-Asia impact PE)",dealType:"Fund Launch",amount:600000000.0,sector:"climate",sourceType:"VC/PE",city:"Singapore",state:"",country:"Singapore",continent:"Asia",date:"2025",year:2025,source:"PR Newswire",notes:"Doubled Fund I. LPs: Temasek, ADB, Mapletree. Climate, food, healthcare, financial inclusion."},
 {investor:"ABC Impact / DBS / UOB",recipient:"Sustainability-linked subscription facility",dealType:"Loan",amount:110000000.0,sector:"climate",sourceType:"VC/PE",city:"Singapore",state:"",country:"Singapore",continent:"Asia",date:"2025",year:2025,source:"ANTARA / PRNewswire",notes:"Converted conventional loan to sustainability-linked instrument. GHG reduction targets."},
@@ -290,28 +91,22 @@ if(filters[openCategory].size>0){const cc=document.createElement('button');cc.cl
 filterOptionsEl.appendChild(row)}
 function buildGeoDesktop(){
 const line1=document.createElement('div');line1.className='filter-opts-row';line1.style.alignItems='center';
-// Show all button with chevron
 const allBtn=document.createElement('button');allBtn.className='geo-all-btn';allBtn.innerHTML='Show all <span class="chevron"></span>';if(geoAllOpen)allBtn.classList.add('open');allBtn.addEventListener('click',()=>{geoAllOpen=!geoAllOpen;if(!geoAllOpen){geoOpenContinent=null;geoHoverContinent=null}buildDesktop()});line1.appendChild(allBtn);
-// Clear button for geo
 if(filters.geo.size>0||isolatedCountry){const gc=document.createElement('button');gc.className='cat-clear visible';gc.textContent='Clear';gc.addEventListener('click',()=>{filters.geo.clear();isolatedCountry=null;fadingIsoCountry=null;if(fadingIsoTimer)clearTimeout(fadingIsoTimer);applyRebuild()});line1.appendChild(gc)}
-// Isolated country pill (if active) — with radio dial inside (#24)
 if(isolatedCountry){const ip=document.createElement('span');ip.className='geo-inview-pill isolated';ip.style.marginLeft='6px';ip.style.display='inline-flex';ip.style.alignItems='center';
 const txt=document.createElement('span');txt.textContent=isolatedCountry;ip.appendChild(txt);
 const rd=document.createElement('span');rd.className='pill-radio active';ip.appendChild(rd);
 ip.addEventListener('click',()=>{fadingIsoCountry=isolatedCountry;isolatedCountry=null;if(isoRadioTimer)clearTimeout(isoRadioTimer);if(fadingIsoTimer)clearTimeout(fadingIsoTimer);fadingIsoTimer=setTimeout(()=>{fadingIsoCountry=null;buildDesktop()},10000);applyRebuild()});line1.appendChild(ip)}
-// Fading iso pill — radio lingers for 10 seconds after de-isolation (#23)
 if(!isolatedCountry&&fadingIsoCountry){const fp=document.createElement('span');fp.className='geo-inview-pill'+(filters.geo.has(fadingIsoCountry)?' selected':'');fp.style.marginLeft='6px';fp.style.display='inline-flex';fp.style.alignItems='center';
 const txt=document.createElement('span');txt.textContent=fadingIsoCountry;fp.appendChild(txt);
 const rd=document.createElement('span');rd.className='pill-radio fading';fp.appendChild(rd);
 setTimeout(()=>{rd.classList.add('fade-out')},8000);
 fp.addEventListener('click',()=>{if(filters.geo.has(fadingIsoCountry))filters.geo.delete(fadingIsoCountry);else filters.geo.add(fadingIsoCountry);applyRebuild()});line1.appendChild(fp)}
-// In-view country pills
 const excludeFromInview=new Set();if(isolatedCountry)excludeFromInview.add(isolatedCountry);if(fadingIsoCountry)excludeFromInview.add(fadingIsoCountry);
 const suggested=getSuggestedCountries().filter(c=>!excludeFromInview.has(c));const maxShow=8-excludeFromInview.size;const visible=suggested.slice(0,Math.max(0,maxShow));const extra=suggested.length-visible.length;
 visible.forEach(c=>{const pill=document.createElement('span');pill.className='geo-inview-pill'+(filters.geo.has(c)?' selected':'')+(isolatedCountry?' grayed':'');pill.textContent=c;pill.style.marginLeft='6px';pill.addEventListener('click',()=>{if(filters.geo.has(c))filters.geo.delete(c);else filters.geo.add(c);applyRebuild()});line1.appendChild(pill)});
 if(extra>0){const more=document.createElement('span');more.className='geo-more-btn';more.textContent=`+${extra} more`;more.style.marginLeft='6px';more.style.position='relative';more.addEventListener('click',(ev)=>{ev.stopPropagation();let tip=more.querySelector('.geo-more-tip');if(tip){tip.style.display=tip.style.display==='none'?'block':'none'}else{tip=document.createElement('div');tip.className='geo-more-tip';tip.textContent='Click country names on the map or "Show all" to filter deals by country.';tip.style.display='block';tip.style.top='24px';tip.style.left='0';more.appendChild(tip);document.addEventListener('click',()=>{tip.style.display='none'},{once:true})}});line1.appendChild(more)}
 filterOptionsEl.appendChild(line1);
-// Continent tab bar
 if(geoAllOpen){const cbc=getCountriesByContinent();const contNames=Object.keys(cbc);
 const wrap=document.createElement('div');wrap.className='geo-tabbar-wrap';
 const bar=document.createElement('div');bar.className='geo-tabbar';
@@ -327,7 +122,6 @@ tab.addEventListener('mouseenter',()=>{if(hoverTimer)clearTimeout(hoverTimer);if
 tab.addEventListener('mouseleave',()=>{if(!geoOpenContinent){hoverTimer=setTimeout(()=>{geoHoverContinent=null;const dd=wrap.querySelector('.geo-tab-dropdown');if(dd)dd.classList.remove('visible')},150)}});
 bar.appendChild(tab)});
 wrap.appendChild(bar);
-// Dropdown container
 const dd=document.createElement('div');dd.className='geo-tab-dropdown';
 dd.addEventListener('mouseenter',()=>{if(hoverTimer)clearTimeout(hoverTimer)});
 dd.addEventListener('mouseleave',()=>{if(!geoOpenContinent){hoverTimer=setTimeout(()=>{geoHoverContinent=null;dd.classList.remove('visible')},150)}});
@@ -360,9 +154,7 @@ item.addEventListener('click',()=>{if(filters.geo.has(c))filters.geo.delete(c);e
 list.appendChild(item)});
 dd.appendChild(list)}}
 function applyRebuild(){const fl=getFiltered();map.getSource('clusters').setData(buildCluster(fl));map.getSource('pins').setData(buildPins(fl));hideOv();updateStats(fl);buildDesktop();updateMobileUI();
-// Handle undo timer
 if(totalActive()>0&&lastFilters){if(undoTimer)clearTimeout(undoTimer);undoTimer=setTimeout(()=>{lastFilters=null;buildDesktop();updateMobileUI()},5000)}}
-// Mobile
 const mobileIcon=document.getElementById('mobileFilterIcon'),mobileBadge=document.getElementById('mobileIconBadge'),mobileClear=document.getElementById('mobileClearBtn'),overlay=document.getElementById('filterOverlay'),panelBody=document.getElementById('filterPanelBody'),footerStats=document.getElementById('filterFooterStats');
 function buildMobile(){panelBody.innerHTML='';catDefs.forEach(cat=>{const sec=document.createElement('div');sec.className='mobile-cat-section';const hdr=document.createElement('div');hdr.className='mobile-cat-header';const lbl=document.createElement('div');lbl.className='mobile-cat-label';lbl.textContent=cat.label;hdr.appendChild(lbl);
 const clrb=document.createElement('button');clrb.className='mobile-cat-clear'+(filters[cat.id].size>0?' visible':'');clrb.textContent='Clear';clrb.addEventListener('click',()=>{filters[cat.id].clear();applyRebuild();buildMobile()});hdr.appendChild(clrb);
@@ -372,7 +164,6 @@ const od=document.createElement('div');od.className='mobile-cat-options';getOpts
 function buildGeoMobile(sec){
 const row=document.createElement('div');row.className='mobile-cat-options';row.style.marginBottom='8px';
 const ab=document.createElement('button');ab.className='mobile-opt-btn';ab.style.borderRadius='5px';ab.textContent='Show all';if(geoAllOpen)ab.classList.add('active');ab.addEventListener('click',()=>{geoAllOpen=!geoAllOpen;if(!geoAllOpen)geoOpenContinent=null;buildMobile()});row.appendChild(ab);
-// In-view pills
 const suggested=getSuggestedCountries();const vis=suggested.slice(0,8);
 if(vis.length>0){const ivLabel=document.createElement('span');ivLabel.style.cssText='font-size:10px;color:var(--gt-muted);font-weight:500;margin-left:4px;white-space:nowrap';ivLabel.textContent='In view:';row.appendChild(ivLabel)}
 vis.forEach(c=>{const pill=document.createElement('span');pill.className='geo-inview-pill'+(filters.geo.has(c)?' selected':'');pill.textContent=c;pill.addEventListener('click',()=>{if(filters.geo.has(c))filters.geo.delete(c);else filters.geo.add(c);applyRebuild();buildMobile()});row.appendChild(pill)});
@@ -386,7 +177,6 @@ const arrow=document.createElement('span');arrow.textContent=isOpen?'▾':'▸';
 ch.appendChild(cn);ch.appendChild(arrow);
 const selCount=countries.filter(c=>filters.geo.has(c)).length;
 if(selCount>0){const cnt=document.createElement('span');cnt.style.cssText='font-size:9px;color:var(--gt-muted)';cnt.textContent=`(${selCount})`;ch.appendChild(cnt)}
-// Select all + Clear (Clear to LEFT of Select all)
 const allSel=countries.every(c=>filters.geo.has(c));
 const btnWrap=document.createElement('span');btnWrap.style.cssText='display:flex;gap:4px;margin-left:auto;align-items:center';
 const hasUndo=continentUndo[cont]&&selCount===0;
@@ -416,12 +206,10 @@ document.getElementById('filterPanelClose').addEventListener('click',closeMobile
 overlay.addEventListener('click',e=>{if(e.target===overlay)closeMobilePanel()});
 document.getElementById('filterFooterClear').addEventListener('click',()=>{if(lastFilters&&totalActive()===0){restoreFiltersSnapshot(lastFilters);lastFilters=null}else{clearAll()}applyRebuild();buildMobile()});
 mobileClear.addEventListener('click',()=>{clearAll();applyRebuild()});
-// Map
 const ZT=9,CZT=6;
 const initCenter=window.innerWidth<=640?[-65,15]:[-40,15];
 const map=new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/light-v11',center:initCenter,zoom:2.5,minZoom:2,maxZoom:16,attributionControl:false});
 map.addControl(new mapboxgl.AttributionControl({compact:true}),'bottom-right');
-// Spinning globe - slow rotation over Atlantic, stops on interaction
 let spinning=true;let lastSpin=0;
 function spinGlobe(ts){if(!spinning)return;if(ts-lastSpin>50){const center=map.getCenter();map.setCenter([center.lng-0.06,center.lat],{duration:0});lastSpin=ts}requestAnimationFrame(spinGlobe)}
 requestAnimationFrame(spinGlobe);
@@ -429,7 +217,6 @@ requestAnimationFrame(spinGlobe);
 map.on('dragstart',()=>{spinning=false});
 map.on('zoomstart',()=>{spinning=false});
 map.on('load',()=>{
-// Filter out GT-labeled countries from base map
 try{const gtNames=Object.keys(COUNTRY_DATA);if(map.getLayer('country-label'))map.setFilter('country-label',['!',['match',['get','name_en'],gtNames,true,false]])}catch(e){}
 map.addSource('clusters',{type:'geojson',data:buildCluster(deals)});
 map.addSource('pins',{type:'geojson',data:buildPins(deals)});
@@ -453,14 +240,13 @@ buildDesktop();updateMobileUI();updateStats(deals)});
 function getCountryForCity(city){const d=deals.find(x=>x.city===city);return d?d.country:''}
 document.getElementById('backBtn').addEventListener('click',()=>{const cd=COUNTRY_DATA[lastCountry];if(cd&&cd.zoomTo)map.flyTo({...cd.zoomTo,duration:1000});else map.flyTo({center:[-40,15],zoom:2.5,duration:1000});hideOv()});
 function showOv(level,name){const card=document.getElementById('overviewCard');let data,dl;
-if(level==='country'){data=COUNTRY_DATA[name];dl=getFiltered().filter(d=>d.country===name);lastCountry=name;document.getElementById('backBtn').textContent='\u2190 View '+name}else{data=CITIES[name];dl=(cityGroups[name]||[]).filter(matchFilter);const cc=getCountryForCity(name);if(cc&&COUNTRY_DATA[cc]){lastCountry=cc;document.getElementById('backBtn').textContent='\u2190 View '+cc}}
+if(level==='country'){data=COUNTRY_DATA[name];dl=getFiltered().filter(d=>d.country===name);lastCountry=name;document.getElementById('backBtn').textContent='← View '+name}else{data=CITIES[name];dl=(cityGroups[name]||[]).filter(matchFilter);const cc=getCountryForCity(name);if(cc&&COUNTRY_DATA[cc]){lastCountry=cc;document.getElementById('backBtn').textContent='← View '+cc}}
 if(!data)return;const tc=dl.reduce((s,d)=>s+(d.amount||0),0);
 document.getElementById('ovTitle').textContent=level==='country'?name:`${name}, ${data.state}`;
 document.getElementById('ovDeals').textContent=dl.length;
 document.getElementById('ovCapital').textContent=fmt(tc);
 document.getElementById('ovBlurb').textContent=data.blurb;
 document.getElementById('ovSidebar').textContent=data.sidebar;
-// Filter checkbox for countries
 const fr=document.getElementById('ovFilterRow');const fc=document.getElementById('ovFilterCheck');const fl=document.getElementById('ovFilterLabel');
 if(level==='country'){fr.style.display='flex';const isFilt=filters.geo.has(name);fc.className='ov-filter-check'+(isFilt?' checked':'');fl.textContent='Filter '+name+' only';fr.onclick=()=>{if(filters.geo.has(name))filters.geo.delete(name);else filters.geo.add(name);applyRebuild();showOv(level,name)}}else{fr.style.display='none'}
 const zb=document.getElementById('ovZoomBtn');zb.textContent=level==='country'?'View':'Zoom in';zb.onclick=()=>{if(level==='country')map.flyTo({...data.zoomTo,duration:1200});else map.flyTo({center:data.coords,zoom:11,duration:1200});hideOv()};
@@ -474,6 +260,3 @@ const loc=p.state?`${p.city}, ${p.state}, ${p.country}`:`${p.city}, ${p.country}
 const popup=new mapboxgl.Popup({offset:15,maxWidth:mb?'270px':'320px',anchor:anchor}).setLngLat(f.geometry.coordinates).setHTML(`<div class="popup-header"><div class="popup-deal-type">${p.dealType}</div><div class="popup-title">${p.investor} → ${p.recipient}</div></div><div class="popup-body"><div class="popup-row"><span class="popup-label">Amount (USD)</span><span class="popup-value">${p.amountFormatted||fmt(p.amount)}</span></div><div class="popup-row"><span class="popup-label">Sector</span><span class="popup-value"><span class="popup-sector-tag" style="background:${c}22;color:${c}">${sl}</span></span></div><div class="popup-row"><span class="popup-label">Location</span><span class="popup-value">${loc}</span></div><div class="popup-row"><span class="popup-label">Date</span><span class="popup-value">${p.date}</span></div><div class="popup-row"><span class="popup-label">Source</span><span class="popup-value">${p.source}</span></div><div class="popup-notes">${p.notes}</div></div>`).addTo(map);
 if(mb){setTimeout(()=>{const el=popup.getElement();if(!el)return;const r=el.getBoundingClientRect();const cr=map.getContainer().getBoundingClientRect();let px=0,py=0;if(r.left<cr.left+8)px=r.left-cr.left-8;if(r.right>cr.right-8)px=r.right-cr.right+8;if(r.top<cr.top+8)py=r.top-cr.top-8;if(r.bottom>cr.bottom-8)py=r.bottom-cr.bottom+8;if(px!==0||py!==0)map.panBy([px,py],{duration:300})},50)}}
 function updateStats(dl){const tc=dl.reduce((s,d)=>s+(d.amount||0),0);document.getElementById('stats').innerHTML=`<div class="stat-card"><div class="stat-value">${dl.length}</div><div class="stat-label">Deals tracked</div></div><div class="stat-card"><div class="stat-value" style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">${fmt(tc)}<span style="font-family:'DM Sans',sans-serif;font-size:10px;color:var(--gt-muted);font-weight:600;letter-spacing:.04em">USD</span></div><div class="stat-label">Capital identified</div></div>`}
-</script>
-</body>
-</html>
