@@ -90,7 +90,7 @@ getOpts(openCategory).forEach(opt=>{const b=document.createElement('button');b.c
 if(filters[openCategory].size>0){const cc=document.createElement('button');cc.className='cat-clear visible';cc.textContent='Clear';cc.addEventListener('click',()=>{filters[openCategory].clear();applyRebuild()});row.appendChild(cc)}
 filterOptionsEl.appendChild(row)}
 function buildGeoDesktop(){
-const line1=document.createElement('div');line1.className='filter-opts-row';line1.style.alignItems='center';
+const line1=document.createElement('div');line1.className='filter-opts-row';line1.style.alignItems='baseline';
 if(filters.geo.size>0||isolatedCountry){const gc=document.createElement('button');gc.className='cat-clear visible';gc.textContent='Clear';gc.addEventListener('click',()=>{filters.geo.clear();isolatedCountry=null;fadingIsoCountry=null;if(fadingIsoTimer)clearTimeout(fadingIsoTimer);applyRebuild()});line1.appendChild(gc)}
 if(isolatedCountry){const ip=document.createElement('span');ip.className='geo-inview-pill isolated';ip.style.marginLeft='6px';ip.style.display='inline-flex';ip.style.alignItems='center';
 const txt=document.createElement('span');txt.textContent=isolatedCountry;ip.appendChild(txt);
@@ -103,6 +103,7 @@ setTimeout(()=>{rd.classList.add('fade-out')},8000);
 fp.addEventListener('click',()=>{if(filters.geo.has(fadingIsoCountry))filters.geo.delete(fadingIsoCountry);else filters.geo.add(fadingIsoCountry);applyRebuild()});line1.appendChild(fp)}
 const excludeFromInview=new Set();if(isolatedCountry)excludeFromInview.add(isolatedCountry);if(fadingIsoCountry)excludeFromInview.add(fadingIsoCountry);
 const suggested=getSuggestedCountries().filter(c=>!excludeFromInview.has(c));const maxShow=8-excludeFromInview.size;const visible=suggested.slice(0,Math.max(0,maxShow));const extra=suggested.length-visible.length;
+if(visible.length>0){const ivl=document.createElement('span');ivl.style.cssText='font-size:11px;color:var(--gt-muted);font-weight:500;margin-left:6px;white-space:nowrap';ivl.textContent='In view:';line1.appendChild(ivl)}
 visible.forEach(c=>{const pill=document.createElement('span');pill.className='geo-inview-pill'+(filters.geo.has(c)?' selected':'')+(isolatedCountry?' grayed':'');pill.textContent=c;pill.style.marginLeft='6px';pill.addEventListener('click',()=>{if(filters.geo.has(c))filters.geo.delete(c);else filters.geo.add(c);applyRebuild()});line1.appendChild(pill)});
 if(extra>0){const more=document.createElement('span');more.className='geo-more-btn';more.textContent=`+${extra} more`;more.style.marginLeft='6px';more.style.position='relative';more.addEventListener('click',(ev)=>{ev.stopPropagation();let tip=more.querySelector('.geo-more-tip');if(tip){tip.style.display=tip.style.display==='none'?'block':'none'}else{tip=document.createElement('div');tip.className='geo-more-tip';tip.textContent='Click country names on the map or use the continent tabs to filter by country.';tip.style.display='block';tip.style.top='24px';tip.style.left='0';more.appendChild(tip);document.addEventListener('click',()=>{tip.style.display='none'},{once:true})}});line1.appendChild(more)}
 filterOptionsEl.appendChild(line1);
@@ -117,7 +118,7 @@ const badge=document.createElement('span');badge.className='geo-tab-badge'+(selC
 if(countries.every(c=>filters.geo.has(c))){badge.textContent='All'}else if(selCount>0){badge.textContent=selCount}else{badge.textContent='0'}
 tab.appendChild(badge);
 tab.addEventListener('click',(ev)=>{ev.stopPropagation();geoOpenContinent=geoOpenContinent===cont?null:cont;geoHoverContinent=null;buildDesktop()});
-tab.addEventListener('mouseenter',()=>{if(hoverTimer)clearTimeout(hoverTimer);if(!geoOpenContinent)geoHoverContinent=cont;buildTabDropdown(wrap,cbc,geoOpenContinent||geoHoverContinent,!!geoOpenContinent)});
+tab.addEventListener('mouseenter',()=>{if(hoverTimer)clearTimeout(hoverTimer);if(!geoOpenContinent)geoHoverContinent=cont;buildTabDropdown(wrap,cbc,geoOpenContinent||geoHoverContinent,!!geoOpenContinent,tab)});
 tab.addEventListener('mouseleave',()=>{if(!geoOpenContinent){hoverTimer=setTimeout(()=>{geoHoverContinent=null;const dd=wrap.querySelector('.geo-tab-dropdown');if(dd)dd.classList.remove('visible')},150)}});
 bar.appendChild(tab)});
 wrap.appendChild(bar);
@@ -126,10 +127,11 @@ dd.addEventListener('mouseenter',()=>{if(hoverTimer)clearTimeout(hoverTimer)});
 dd.addEventListener('mouseleave',()=>{if(!geoOpenContinent){hoverTimer=setTimeout(()=>{geoHoverContinent=null;dd.classList.remove('visible')},150)}});
 wrap.appendChild(dd);
 filterOptionsEl.appendChild(wrap);
-if(geoOpenContinent)buildTabDropdown(wrap,cbc,geoOpenContinent,true)}}
-function buildTabDropdown(wrap,cbc,cont,showList){
+if(geoOpenContinent){const at=bar.querySelector('.geo-tab.active');buildTabDropdown(wrap,cbc,geoOpenContinent,true,at)}}}
+function buildTabDropdown(wrap,cbc,cont,showList,anchorEl){
 if(!cont)return;const dd=wrap.querySelector('.geo-tab-dropdown');if(!dd)return;
 dd.innerHTML='';dd.classList.add('visible');
+if(anchorEl){const bw=(wrap.querySelector('.geo-tabbar')||wrap).offsetWidth;const dw=Math.max(180,Math.round(bw*0.5));let lft=anchorEl.offsetLeft;if(lft+dw>bw)lft=Math.max(0,bw-dw);dd.style.width=dw+'px';dd.style.left=lft+'px';dd.style.right='auto'}
 const countries=cbc[cont];const selCount=countries.filter(c=>filters.geo.has(c)).length;const allSel=countries.every(c=>filters.geo.has(c));
 const acts=document.createElement('div');acts.className=showList?'geo-tab-actions':'geo-tab-hover-actions';
 const hasUndo=continentUndo[cont]&&selCount===0;
@@ -161,38 +163,41 @@ sec.appendChild(hdr);
 if(cat.id==='geo'){buildGeoMobile(sec);panelBody.appendChild(sec);return}
 const od=document.createElement('div');od.className='mobile-cat-options';getOpts(cat.id).forEach(opt=>{const b=document.createElement('button');b.className='mobile-opt-btn'+(filters[cat.id].has(opt.id)?' active':'');if(cat.id==='sector'&&SC[opt.id])b.innerHTML=`<span class="opt-dot" style="background:${SC[opt.id]}"></span>${opt.label}`;else b.textContent=opt.label;b.addEventListener('click',()=>{if(filters[cat.id].has(opt.id))filters[cat.id].delete(opt.id);else filters[cat.id].add(opt.id);applyRebuild();buildMobile()});od.appendChild(b)});sec.appendChild(od);panelBody.appendChild(sec)});updateMobileFooterStats()}
 function buildGeoMobile(sec){
-const row=document.createElement('div');row.className='mobile-cat-options';row.style.marginBottom='8px';
+const row=document.createElement('div');row.className='mobile-cat-options';row.style.cssText='margin-bottom:8px;align-items:baseline';
 const suggested=getSuggestedCountries();const vis=suggested.slice(0,8);
-if(vis.length>0){const ivLabel=document.createElement('span');ivLabel.style.cssText='font-size:10px;color:var(--gt-muted);font-weight:500;margin-left:4px;white-space:nowrap';ivLabel.textContent='In view:';row.appendChild(ivLabel)}
+if(vis.length>0){const ivl=document.createElement('span');ivl.style.cssText='font-size:11px;color:var(--gt-muted);font-weight:500;margin-left:4px;white-space:nowrap';ivl.textContent='In view:';row.appendChild(ivl)}
 vis.forEach(c=>{const pill=document.createElement('span');pill.className='geo-inview-pill'+(filters.geo.has(c)?' selected':'');pill.textContent=c;pill.addEventListener('click',()=>{if(filters.geo.has(c))filters.geo.delete(c);else filters.geo.add(c);applyRebuild();buildMobile()});row.appendChild(pill)});
 if(suggested.length>8){const more=document.createElement('span');more.className='geo-more-btn';more.textContent=`+${suggested.length-8} more`;row.appendChild(more)}
 sec.appendChild(row);
-{const cbc=getCountriesByContinent();Object.keys(cbc).forEach(cont=>{const countries=cbc[cont];
-const ch=document.createElement('div');ch.style.display='flex';ch.style.alignItems='center';ch.style.gap='6px';ch.style.margin='10px 0 6px';ch.style.cursor='pointer';
-const cn=document.createElement('span');cn.style.cssText='font-size:11px;font-weight:600;color:var(--gt-muted);text-transform:none';cn.textContent=cont;
-const isOpen=geoOpenContinent===cont;
-const arrow=document.createElement('span');arrow.textContent=isOpen?'▾':'▸';arrow.style.fontSize='9px';arrow.style.color='var(--gt-muted)';
-ch.appendChild(cn);ch.appendChild(arrow);
+const cbc=getCountriesByContinent();const contNames=Object.keys(cbc);
+const wrap=document.createElement('div');wrap.className='geo-tabbar-wrap geo-tabbar-wrap--mobile';
+const bar=document.createElement('div');bar.className='geo-tabbar';
+contNames.forEach(cont=>{const countries=cbc[cont];const tab=document.createElement('div');tab.className='geo-tab'+(geoOpenContinent===cont?' active':'');
+const nm=document.createElement('span');nm.className='geo-tab-name';nm.textContent=cont;tab.appendChild(nm);
 const selCount=countries.filter(c=>filters.geo.has(c)).length;
-if(selCount>0){const cnt=document.createElement('span');cnt.style.cssText='font-size:9px;color:var(--gt-muted)';cnt.textContent=`(${selCount})`;ch.appendChild(cnt)}
-const allSel=countries.every(c=>filters.geo.has(c));
-const btnWrap=document.createElement('span');btnWrap.style.cssText='display:flex;gap:4px;margin-left:auto;align-items:center';
-const hasUndo=continentUndo[cont]&&selCount===0;
-if(selCount>0||hasUndo){const clrC=document.createElement('button');clrC.className='geo-sel-all';
-if(hasUndo){clrC.textContent='↺';clrC.addEventListener('click',(ev)=>{ev.stopPropagation();continentUndo[cont].forEach(c=>filters.geo.add(c));delete continentUndo[cont];applyRebuild();buildMobile()})}
+const badge=document.createElement('span');badge.className='geo-tab-badge'+(selCount>0?'':' empty');
+if(countries.every(c=>filters.geo.has(c))){badge.textContent='All'}else if(selCount>0){badge.textContent=selCount}else{badge.textContent='0'}
+tab.appendChild(badge);
+tab.addEventListener('click',(ev)=>{ev.stopPropagation();geoOpenContinent=geoOpenContinent===cont?null:cont;buildMobile()});
+bar.appendChild(tab)});
+wrap.appendChild(bar);sec.appendChild(wrap);
+if(geoOpenContinent&&cbc[geoOpenContinent]){const cont=geoOpenContinent;const countries=cbc[cont];
+const selCount=countries.filter(c=>filters.geo.has(c)).length;const allSel=countries.every(c=>filters.geo.has(c));const hasUndo=continentUndo[cont]&&selCount===0;
+const dd=document.createElement('div');dd.className='geo-mobile-dropdown';
+const acts=document.createElement('div');acts.className='geo-tab-actions';
+if(selCount>0||hasUndo){const clrC=document.createElement('button');clrC.className='cat-clear visible';
+if(hasUndo){clrC.textContent='↺';clrC.title='Undo clear';clrC.addEventListener('click',(ev)=>{ev.stopPropagation();continentUndo[cont].forEach(c=>filters.geo.add(c));delete continentUndo[cont];applyRebuild();buildMobile()})}
 else{clrC.textContent='Clear';clrC.addEventListener('click',(ev)=>{ev.stopPropagation();continentUndo[cont]=countries.filter(c=>filters.geo.has(c));countries.forEach(c=>filters.geo.delete(c));applyRebuild();buildMobile();setTimeout(()=>{if(countries.some(c=>filters.geo.has(c))){delete continentUndo[cont];buildMobile()}},5000)})}
-btnWrap.appendChild(clrC)}
-const sa=document.createElement('button');sa.className='geo-sel-all'+(allSel?' all-selected':'');sa.textContent='Select all';sa.addEventListener('click',(ev)=>{ev.stopPropagation();if(allSel)countries.forEach(c=>filters.geo.delete(c));else countries.forEach(c=>filters.geo.add(c));applyRebuild();buildMobile()});btnWrap.appendChild(sa);
-ch.appendChild(btnWrap);
-ch.addEventListener('click',()=>{geoOpenContinent=isOpen?null:cont;buildMobile()});
-sec.appendChild(ch);
-if(isOpen){const list=document.createElement('div');list.style.cssText='max-height:240px;overflow-y:auto;padding:2px 0 2px 4px';
+acts.appendChild(clrC)}
+const sa=document.createElement('button');sa.className='geo-sel-all'+(allSel?' all-selected':'');sa.textContent='Select all';sa.addEventListener('click',(ev)=>{ev.stopPropagation();if(allSel)countries.forEach(c=>filters.geo.delete(c));else countries.forEach(c=>filters.geo.add(c));applyRebuild();buildMobile()});acts.appendChild(sa);
+dd.appendChild(acts);
+const list=document.createElement('div');list.className='geo-country-list';
 countries.forEach(c=>{const item=document.createElement('div');item.className='geo-country-item';
 const cb=document.createElement('div');cb.className='geo-checkbox'+(filters.geo.has(c)?' checked':'');item.appendChild(cb);
 const lbl=document.createElement('span');lbl.textContent=c;item.appendChild(lbl);
 item.addEventListener('click',()=>{if(filters.geo.has(c))filters.geo.delete(c);else filters.geo.add(c);applyRebuild();buildMobile()});
 list.appendChild(item)});
-sec.appendChild(list)}})}}
+dd.appendChild(list);sec.appendChild(dd)}}
 function updateMobileFooterStats(){const fl=getFiltered();const tc=fl.reduce((s,d)=>s+(d.amount||0),0);footerStats.innerHTML=`<span class="filter-footer-stat"><strong>${fl.length}</strong> deals</span><span class="filter-footer-stat"><strong>${fmt(tc)}</strong> capital</span>`;
 const clrBtn=document.getElementById('filterFooterClear');
 if(totalActive()>0){clrBtn.className='filter-footer-clear visible';clrBtn.textContent='Clear all filters'}else if(lastFilters){clrBtn.className='filter-footer-clear visible';clrBtn.textContent='Reapply last filters'}else{clrBtn.className='filter-footer-clear'}}
