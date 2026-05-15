@@ -65,7 +65,7 @@ function isMobile(){return window.innerWidth<=640}
 function jitter(b,i,s){const a=(i*137.508)*(Math.PI/180);const r=s*Math.sqrt(i+1);return[b[0]+r*Math.cos(a),b[1]+r*Math.sin(a)]}
 const cityGroups={};deals.forEach(d=>{if(!cityGroups[d.city])cityGroups[d.city]=[];cityGroups[d.city].push(d)});
 const filters={sector:new Set(),year:new Set(),type:new Set(),size:new Set(),source:new Set(),geo:new Set()};
-let openCategory='sector',geoAllOpen=false,geoOpenContinent=null,geoHoverContinent=null,isolatedCountry=null,isoRadioTimer=null,lastFilters=null,undoTimer=null,lastCountry='Brazil',continentUndo={},fadingIsoCountry=null,fadingIsoTimer=null;
+let openCategory='sector',geoOpenContinent=null,geoHoverContinent=null,isolatedCountry=null,isoRadioTimer=null,lastFilters=null,undoTimer=null,lastCountry='Brazil',continentUndo={},fadingIsoCountry=null,fadingIsoTimer=null;
 function totalActive(){let c=0;Object.values(filters).forEach(s=>c+=s.size);return c}
 function matchFilter(d){if(filters.sector.size>0&&!filters.sector.has(d.sector))return false;if(filters.year.size>0&&!filters.year.has(String(d.year)))return false;if(filters.type.size>0&&!filters.type.has(d.dealType))return false;if(filters.source.size>0&&!filters.source.has(d.sourceType))return false;if(filters.geo.size>0&&!filters.geo.has(d.country))return false;if(isolatedCountry&&d.country!==isolatedCountry)return false;if(filters.size.size>0){let m=false;filters.size.forEach(sid=>{const r=SIZE_RANGES.find(x=>x.id===sid);if(!r)return;if(r.min===null){if(d.amount===null)m=true}else if(d.amount!==null&&d.amount>=r.min&&d.amount<r.max)m=true});if(!m)return false}return true}
 function getFiltered(){return deals.filter(matchFilter)}
@@ -91,7 +91,6 @@ if(filters[openCategory].size>0){const cc=document.createElement('button');cc.cl
 filterOptionsEl.appendChild(row)}
 function buildGeoDesktop(){
 const line1=document.createElement('div');line1.className='filter-opts-row';line1.style.alignItems='center';
-const allBtn=document.createElement('button');allBtn.className='geo-all-btn';allBtn.innerHTML='Show all <span class="chevron"></span>';if(geoAllOpen)allBtn.classList.add('open');allBtn.addEventListener('click',()=>{geoAllOpen=!geoAllOpen;if(!geoAllOpen){geoOpenContinent=null;geoHoverContinent=null}buildDesktop()});line1.appendChild(allBtn);
 if(filters.geo.size>0||isolatedCountry){const gc=document.createElement('button');gc.className='cat-clear visible';gc.textContent='Clear';gc.addEventListener('click',()=>{filters.geo.clear();isolatedCountry=null;fadingIsoCountry=null;if(fadingIsoTimer)clearTimeout(fadingIsoTimer);applyRebuild()});line1.appendChild(gc)}
 if(isolatedCountry){const ip=document.createElement('span');ip.className='geo-inview-pill isolated';ip.style.marginLeft='6px';ip.style.display='inline-flex';ip.style.alignItems='center';
 const txt=document.createElement('span');txt.textContent=isolatedCountry;ip.appendChild(txt);
@@ -105,9 +104,9 @@ fp.addEventListener('click',()=>{if(filters.geo.has(fadingIsoCountry))filters.ge
 const excludeFromInview=new Set();if(isolatedCountry)excludeFromInview.add(isolatedCountry);if(fadingIsoCountry)excludeFromInview.add(fadingIsoCountry);
 const suggested=getSuggestedCountries().filter(c=>!excludeFromInview.has(c));const maxShow=8-excludeFromInview.size;const visible=suggested.slice(0,Math.max(0,maxShow));const extra=suggested.length-visible.length;
 visible.forEach(c=>{const pill=document.createElement('span');pill.className='geo-inview-pill'+(filters.geo.has(c)?' selected':'')+(isolatedCountry?' grayed':'');pill.textContent=c;pill.style.marginLeft='6px';pill.addEventListener('click',()=>{if(filters.geo.has(c))filters.geo.delete(c);else filters.geo.add(c);applyRebuild()});line1.appendChild(pill)});
-if(extra>0){const more=document.createElement('span');more.className='geo-more-btn';more.textContent=`+${extra} more`;more.style.marginLeft='6px';more.style.position='relative';more.addEventListener('click',(ev)=>{ev.stopPropagation();let tip=more.querySelector('.geo-more-tip');if(tip){tip.style.display=tip.style.display==='none'?'block':'none'}else{tip=document.createElement('div');tip.className='geo-more-tip';tip.textContent='Click country names on the map or "Show all" to filter deals by country.';tip.style.display='block';tip.style.top='24px';tip.style.left='0';more.appendChild(tip);document.addEventListener('click',()=>{tip.style.display='none'},{once:true})}});line1.appendChild(more)}
+if(extra>0){const more=document.createElement('span');more.className='geo-more-btn';more.textContent=`+${extra} more`;more.style.marginLeft='6px';more.style.position='relative';more.addEventListener('click',(ev)=>{ev.stopPropagation();let tip=more.querySelector('.geo-more-tip');if(tip){tip.style.display=tip.style.display==='none'?'block':'none'}else{tip=document.createElement('div');tip.className='geo-more-tip';tip.textContent='Click country names on the map or use the continent tabs to filter by country.';tip.style.display='block';tip.style.top='24px';tip.style.left='0';more.appendChild(tip);document.addEventListener('click',()=>{tip.style.display='none'},{once:true})}});line1.appendChild(more)}
 filterOptionsEl.appendChild(line1);
-if(geoAllOpen){const cbc=getCountriesByContinent();const contNames=Object.keys(cbc);
+{const cbc=getCountriesByContinent();const contNames=Object.keys(cbc);
 const wrap=document.createElement('div');wrap.className='geo-tabbar-wrap';
 const bar=document.createElement('div');bar.className='geo-tabbar';
 let hoverTimer=null;
@@ -163,13 +162,12 @@ if(cat.id==='geo'){buildGeoMobile(sec);panelBody.appendChild(sec);return}
 const od=document.createElement('div');od.className='mobile-cat-options';getOpts(cat.id).forEach(opt=>{const b=document.createElement('button');b.className='mobile-opt-btn'+(filters[cat.id].has(opt.id)?' active':'');if(cat.id==='sector'&&SC[opt.id])b.innerHTML=`<span class="opt-dot" style="background:${SC[opt.id]}"></span>${opt.label}`;else b.textContent=opt.label;b.addEventListener('click',()=>{if(filters[cat.id].has(opt.id))filters[cat.id].delete(opt.id);else filters[cat.id].add(opt.id);applyRebuild();buildMobile()});od.appendChild(b)});sec.appendChild(od);panelBody.appendChild(sec)});updateMobileFooterStats()}
 function buildGeoMobile(sec){
 const row=document.createElement('div');row.className='mobile-cat-options';row.style.marginBottom='8px';
-const ab=document.createElement('button');ab.className='mobile-opt-btn';ab.style.borderRadius='5px';ab.textContent='Show all';if(geoAllOpen)ab.classList.add('active');ab.addEventListener('click',()=>{geoAllOpen=!geoAllOpen;if(!geoAllOpen)geoOpenContinent=null;buildMobile()});row.appendChild(ab);
 const suggested=getSuggestedCountries();const vis=suggested.slice(0,8);
 if(vis.length>0){const ivLabel=document.createElement('span');ivLabel.style.cssText='font-size:10px;color:var(--gt-muted);font-weight:500;margin-left:4px;white-space:nowrap';ivLabel.textContent='In view:';row.appendChild(ivLabel)}
 vis.forEach(c=>{const pill=document.createElement('span');pill.className='geo-inview-pill'+(filters.geo.has(c)?' selected':'');pill.textContent=c;pill.addEventListener('click',()=>{if(filters.geo.has(c))filters.geo.delete(c);else filters.geo.add(c);applyRebuild();buildMobile()});row.appendChild(pill)});
 if(suggested.length>8){const more=document.createElement('span');more.className='geo-more-btn';more.textContent=`+${suggested.length-8} more`;row.appendChild(more)}
 sec.appendChild(row);
-if(geoAllOpen){const cbc=getCountriesByContinent();Object.keys(cbc).forEach(cont=>{const countries=cbc[cont];
+{const cbc=getCountriesByContinent();Object.keys(cbc).forEach(cont=>{const countries=cbc[cont];
 const ch=document.createElement('div');ch.style.display='flex';ch.style.alignItems='center';ch.style.gap='6px';ch.style.margin='10px 0 6px';ch.style.cursor='pointer';
 const cn=document.createElement('span');cn.style.cssText='font-size:11px;font-weight:600;color:var(--gt-muted);text-transform:none';cn.textContent=cont;
 const isOpen=geoOpenContinent===cont;
@@ -230,7 +228,7 @@ map.addLayer({id:'gt-country-label',type:'symbol',source:'gt-country-labels',max
 map.addLayer({id:'deal-pins',type:'circle',source:'pins',minzoom:ZT,paint:{'circle-radius':['get','radius'],'circle-color':['get','color'],'circle-opacity':.88,'circle-stroke-width':2,'circle-stroke-color':'#fff'}});
 map.addLayer({id:'deal-labels',type:'symbol',source:'pins',minzoom:ZT,filter:['has','amount'],layout:{'text-field':['get','amountFormatted'],'text-font':['DIN Pro Medium','Arial Unicode MS Regular'],'text-size':10,'text-offset':[0,-2],'text-anchor':'bottom','text-allow-overlap':false},paint:{'text-color':'#1a1a1a','text-halo-color':'#fff','text-halo-width':1.5}});
 map.on('zoom',()=>{const z=map.getZoom();const v=z<ZT;['city-clusters','single-pins'].forEach(l=>{map.setPaintProperty(l,'circle-opacity',v?.88:0);map.setPaintProperty(l,'circle-stroke-opacity',v?.9:0)});['city-cluster-count','city-cluster-name','single-pin-name'].forEach(l=>map.setPaintProperty(l,'text-opacity',v?1:0));document.getElementById('backBtn').style.display=z>=CZT+0.5?'block':'none';if(z>=ZT)hideOv()});
-map.on('moveend',()=>{if(openCategory==='geo')buildDesktop()});
+map.on('moveend',()=>{if(openCategory==='geo'&&!spinning)buildDesktop()});
 map.on('click','city-clusters',e=>{if(map.getZoom()<ZT){const city=e.features[0].properties.city;if(COUNTRY_DATA[getCountryForCity(city)]&&!CITIES[city])showOv('country',getCountryForCity(city));else showOv('city',city)}});
 map.on('click','single-pins',e=>{if(map.getZoom()<ZT){const p=e.features[0].properties;const country=p.country||getCountryForCity(p.city);if(country==='Singapore')showOv('country','Singapore');else showDeal(e.features[0])}});
 map.on('click','deal-pins',e=>{hideOv();showDeal(e.features[0])});
@@ -248,7 +246,7 @@ document.getElementById('ovCapital').textContent=fmt(tc);
 document.getElementById('ovBlurb').textContent=data.blurb;
 document.getElementById('ovSidebar').textContent=data.sidebar;
 const fr=document.getElementById('ovFilterRow');const fc=document.getElementById('ovFilterCheck');const fl=document.getElementById('ovFilterLabel');
-if(level==='country'){fr.style.display='flex';const isFilt=filters.geo.has(name);fc.className='ov-filter-check'+(isFilt?' checked':'');fl.textContent='Filter '+name+' only';fr.onclick=()=>{if(filters.geo.has(name))filters.geo.delete(name);else filters.geo.add(name);applyRebuild();showOv(level,name)}}else{fr.style.display='none'}
+if(level==='country'){fr.style.display='flex';fc.className='ov-filter-check'+(isolatedCountry===name?' checked':'');fl.textContent='Filter '+name+' only';fr.onclick=()=>{if(isolatedCountry===name){fadingIsoCountry=name;isolatedCountry=null;if(isoRadioTimer)clearTimeout(isoRadioTimer);if(fadingIsoTimer)clearTimeout(fadingIsoTimer);fadingIsoTimer=setTimeout(()=>{fadingIsoCountry=null;buildDesktop()},10000)}else{isolatedCountry=name;fadingIsoCountry=null;if(fadingIsoTimer)clearTimeout(fadingIsoTimer)}applyRebuild();showOv(level,name)}}else{fr.style.display='none'}
 const zb=document.getElementById('ovZoomBtn');zb.textContent=level==='country'?'View':'Zoom in';zb.onclick=()=>{if(level==='country')map.flyTo({...data.zoomTo,duration:1200});else map.flyTo({center:data.coords,zoom:11,duration:1200});hideOv()};
 card.style.visibility='hidden';card.style.display='block';const cw=map.getContainer().clientWidth;const ch=map.getContainer().clientHeight;const cardW=Math.min(400,cw-40);const cardH=card.offsetHeight;card.style.left=((cw-cardW)/2)+'px';card.style.right='auto';card.style.transform='none';card.style.bottom='auto';
 if(level==='country'){card.style.top=Math.max(20,(ch-cardH)/2)+'px'}else{const pt=map.project(data.coords);if(pt.y<ch/3){card.style.top=Math.max(pt.y+30,130)+'px'}else if(pt.y>ch*2/3){card.style.top=Math.max(20,pt.y-cardH-30)+'px'}else{card.style.top=Math.max(20,pt.y-cardH/2)+'px'}}card.style.visibility='visible'}
