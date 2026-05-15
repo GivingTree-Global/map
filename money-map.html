@@ -53,6 +53,10 @@ html,body{width:100%;height:100%;overflow:hidden;margin:0;padding:0;background:t
 .geo-inview-pill:hover{background:var(--gt-pale);border-color:var(--gt-mid)}
 .geo-inview-pill.selected{background:var(--gt-forest);color:#fff;border-color:var(--gt-forest)}
 .geo-inview-pill.isolated{background:var(--gt-iso);color:#fff;border-color:var(--gt-iso)}
+.geo-inview-pill .pill-radio{display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid #fff;vertical-align:middle;margin-left:4px;flex-shrink:0}
+.geo-inview-pill .pill-radio.active{background:var(--gt-iso);border-color:#fff}
+.geo-inview-pill .pill-radio.fading{background:transparent;border-color:var(--gt-iso-hover);opacity:.5;transition:opacity 1s ease-out}
+.geo-inview-pill .pill-radio.fade-out{opacity:0}
 .geo-inview-pill.grayed{opacity:.4}
 .geo-more-btn{font-family:'DM Sans',sans-serif;font-size:10px;color:var(--gt-muted);cursor:pointer;padding:4px 6px;white-space:nowrap}
 .geo-more-btn:hover{color:var(--gt-forest)}
@@ -78,6 +82,20 @@ html,body{width:100%;height:100%;overflow:hidden;margin:0;padding:0;background:t
 .geo-country-item:hover .geo-radio{opacity:.5;border-color:var(--gt-iso-hover)}
 .geo-radio.active{opacity:1;background:var(--gt-iso);border-color:var(--gt-iso)}
 .geo-radio.fading{opacity:.5;border-color:var(--gt-iso-hover)}
+/* Desktop continent tab bar */
+.geo-tabbar-wrap{position:relative;margin-top:6px}
+.geo-tabbar{display:flex;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-radius:8px;border:1.5px solid rgba(27,67,50,.15);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.geo-tab{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;color:var(--gt-forest);padding:6px 12px;cursor:pointer;border-right:1px solid rgba(27,67,50,.12);display:flex;align-items:center;gap:4px;transition:background .15s;white-space:nowrap;user-select:none}
+.geo-tab:last-child{border-right:none}
+.geo-tab:hover{background:var(--gt-pale)}
+.geo-tab.active{background:rgba(255,255,255,.98)}
+.geo-tab:not(.active):not(:hover){background:rgba(240,240,240,.7)}
+.geo-tab-badge{font-size:8px;font-weight:700;color:#fff;background:var(--gt-mid);min-width:14px;height:14px;line-height:14px;text-align:center;border-radius:7px;padding:0 3px;display:inline-block}
+.geo-tab-badge.empty{visibility:hidden}
+.geo-tab-dropdown{position:absolute;top:100%;left:0;right:0;margin-top:4px;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border:1.5px solid rgba(27,67,50,.15);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:20;padding:8px 10px;display:none}
+.geo-tab-dropdown.visible{display:block}
+.geo-tab-actions{display:flex;gap:6px;align-items:center;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #f0f0f0}
+.geo-tab-hover-actions{display:flex;gap:6px;align-items:center;padding:4px 6px}
 /* Mobile filter bar */
 .mobile-filter-bar{display:none;position:absolute;top:72px;left:12px;z-index:12;align-items:center;gap:8px}
 .mobile-filter-icon{background:var(--gt-forest);color:#fff;border:none;width:40px;height:40px;border-radius:50%;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;position:relative}
@@ -193,13 +211,15 @@ const CITIES={"S\u00e3o Paulo":{coords:[-46.6333, -23.5505],state:"SP",blurb:"S\
 "London":{coords:[-0.1276, 51.5074],state:"England",blurb:"London is positioning itself as the global capital of impact investing, with the UK market surpassing \u00a311B in 2024 and new government-backed vehicles like the \u00a3500M Better Futures Fund.",sidebar:"Key players: Bridges Fund Management (\u00a31.8B+ raised), Better Society Capital, Big Society Capital. Home to the Impact Investor Global Summit."},
 "Singapore":{coords:[103.8198, 1.3521],state:"",blurb:"Singapore is the hub for impact investing across Asia, anchored by Temasek's ABC World framework and a growing ecosystem of pan-Asian impact PE funds.",sidebar:"Key players: ABC Impact (Temasek-backed, $600M+ Fund II), DBS, UOB. Centre for Impact Investing and Practices. MAS green finance initiatives."},
 "Accra":{coords:[-0.187, 5.6037],state:"Greater Accra",blurb:"Accra is West Africa's emerging impact investing hub, home to the Ci-Gaba Fund-of-Funds and the annual Africa Impact Summit drawing 500+ delegates from 20+ countries.",sidebar:"Key players: Impact Investing Ghana (IIGh), Savanna Impact Advisory, FSD Africa. Government launched Climate Financing Division and Green/Social Bond Framework."},
-"Sydney":{coords:[151.2093, -33.8688],state:"NSW",blurb:"Sydney anchors Australia's rapidly growing impact investing market, with AUD 9B in clean energy commitments in 2024 and the government-backed Clean Energy Finance Corporation deploying record capital.",sidebar:"Key players: CEFC ($32.5B allocation), Australian Impact Investments, NorthStar Impact Funds. Hosts the annual Impact Investment Summit at ICC Sydney."}};
+"Sydney":{coords:[151.2093, -33.8688],state:"NSW",blurb:"Sydney anchors Australia's rapidly growing impact investing market, with AUD 9B in clean energy commitments in 2024 and the government-backed Clean Energy Finance Corporation deploying record capital.",sidebar:"Key players: CEFC ($32.5B allocation), Australian Impact Investments, NorthStar Impact Funds. Hosts the annual Impact Investment Summit at ICC Sydney."},
+"Tokyo":{coords:[139.6917, 35.6895],state:"",blurb:"Tokyo is the center of Japan's growing impact investing ecosystem, backed by government-private sector partnerships and JICA's expanding global impact portfolio. Japan's National Advisory Board (GSG member) is driving policy alignment.",sidebar:"Key players: SIIF (Social Innovation & Investment Foundation), JICA, Shinsei Impact, GSG Impact Japan. Themes: aging society solutions, financial inclusion across Asia, clean energy transition."}};
 const COUNTRY_DATA={"Brazil":{coords:[-51.9, -14.2],labelCoords:[-51.9, -8.5],blurb:"Brazil is Latin America's largest impact investing market and the sixth-largest economy globally. The ecosystem spans over a dozen dedicated fund managers, government-backed programs, and a national advisory board.",sidebar:"Key cities: S\u00e3o Paulo (financial hub), Rio (social finance), Bras\u00edlia (policy), Santos (trade). Themes: climate, energy transition, economic inclusion, regenerative agriculture, conservation.",zoomTo:{"center": [-49.5, -16], "zoom": 4.2}},
 "United States":{coords:[-95.7, 37.1],labelCoords:[-98, 39.5],blurb:"The US is the world's largest impact investing market, with over $1 trillion in assets under management. New York City alone has deployed $65M+ through city-backed impact funds targeting diverse entrepreneurship.",sidebar:"Key hubs: NYC (Catalyst Fund, Harlem Capital), San Francisco (SOCAP), Boston (impact PE). Themes: economic inclusion, diverse founders, climate tech, community development.",zoomTo:{"center": [-95.7, 38], "zoom": 4}},
 "United Kingdom":{coords:[-1.5, 52.5],labelCoords:[-2.5, 54],blurb:"The UK impact investing market topped \u00a311B in 2024, growing 10% annually. London is home to pioneering firms like Bridges Fund Management and government-backed institutions channeling capital into social outcomes.",sidebar:"Key players: Bridges FM (\u00a31.8B+), Better Society Capital, Big Society Capital. Policy: \u00a3500M Better Futures Fund, Office for the Impact Economy. Themes: social housing, inclusive growth, climate.",zoomTo:{"center": [-2, 54], "zoom": 5.5}},
 "Singapore":{coords:[103.8, 1.35],labelCoords:[103.8, 1.35],blurb:"Singapore punches above its weight in impact investing, anchored by Temasek's multi-billion-dollar commitment through ABC Impact and supported by MAS green finance initiatives and a growing ecosystem of pan-Asian impact funds.",sidebar:"Key players: ABC Impact ($600M+ Fund II), Temasek Trust, DBS, UOB. Themes: climate/water solutions, sustainable food, healthcare, financial/digital inclusion across Asia.",zoomTo:{"center": [103.8, 1.35], "zoom": 11}},
 "Ghana":{coords:[-1.0, 7.9],labelCoords:[-1.2, 7.5],blurb:"Ghana is pioneering domestic capital mobilization for impact in West Africa. The Ci-Gaba Fund-of-Funds is the region's first domestically domiciled private fund of funds, unlocking pension capital for SMEs across Ghana, Nigeria, Senegal, and C\u00f4te d'Ivoire.",sidebar:"Key players: Impact Investing Ghana (GSG National Partner), Savanna Impact Advisory, FSD Africa. Themes: SME finance, pension capital mobilization, blended finance, gender lens investing.",zoomTo:{"center": [-1.5, 7.5], "zoom": 7}},
-"Australia":{coords:[134, -25.3],labelCoords:[134, -25],blurb:"Australia's impact investing market is accelerating, with AUD 9B in clean energy commitments in 2024 and the government-backed CEFC deploying record AUD 4.7B in a single year. The market spans renewable energy, social housing, and First Nations investment.",sidebar:"Key players: CEFC ($32.5B allocation), Australian Impact Investments, Infradebt, Impact Investing Australia. Themes: renewables, social/affordable housing, First Nations, energy transition.",zoomTo:{"center": [134, -25], "zoom": 4.5}}};
+"Australia":{coords:[134, -25.3],labelCoords:[134, -25],blurb:"Australia's impact investing market is accelerating, with AUD 9B in clean energy commitments in 2024 and the government-backed CEFC deploying record AUD 4.7B in a single year. The market spans renewable energy, social housing, and First Nations investment.",sidebar:"Key players: CEFC ($32.5B allocation), Australian Impact Investments, Infradebt, Impact Investing Australia. Themes: renewables, social/affordable housing, First Nations, energy transition.",zoomTo:{"center": [134, -25], "zoom": 4.5}},
+"Japan":{coords:[138.2, 36.2],labelCoords:[138.2, 37.5],blurb:"Japan's impact investing market has grown rapidly since the government's 2014 social impact commitment, with JICA emerging as a major global DFI deploying capital across Asia and Africa. The Social Innovation and Investment Foundation anchors the domestic ecosystem.",sidebar:"Key players: SIIF, JICA ($40M+ impact allocations), Shinsei Impact, GSG Impact Japan (NAB). Policy: Tokyo Metropolitan Government public-private impact growth fund. Themes: aging society, financial inclusion, clean energy.",zoomTo:{"center": [138, 37], "zoom": 5.5}}};
 const deals=[
 {investor:"I Squared Capital",recipient:"\u00d3rigo Energia",dealType:"Investment",amount:400000000.0,sector:"energy",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"Jan 2024",year:2024,source:"Reuters",notes:"49% stake in Brazil's largest distributed solar generation platform."},
 {investor:"Augment Infrastructure",recipient:"\u00d3rigo Energia",dealType:"Investment",amount:140000000.0,sector:"energy",sourceType:"VC/PE",city:"S\u00e3o Paulo",state:"SP",country:"Brazil",continent:"South America",date:"2022",year:2022,source:"\u00d3rigo Energia IR",notes:"BRL 700M in renewable energy infrastructure investment."},
@@ -233,7 +253,9 @@ const deals=[
 {investor:"Ci-Gaba Fund-of-Funds (IIGh/Savanna)",recipient:"West African venture funds + SMEs",dealType:"Fund Launch",amount:75000000.0,sector:"economic-inclusion",sourceType:"DFI",city:"Accra",state:"Greater Accra",country:"Ghana",continent:"Africa",date:"2023",year:2023,source:"FSD Africa / GNA",notes:"$75M target. Blended finance unlocking pension capital for West African SMEs."},
 {investor:"FSDAi (FSD Africa Investments)",recipient:"Ci-Gaba Fund",dealType:"Investment",amount:7500000.0,sector:"economic-inclusion",sourceType:"DFI",city:"Accra",state:"Greater Accra",country:"Ghana",continent:"Africa",date:"2026",year:2026,source:"FSD Africa",notes:"UK-backed specialist investor anchoring Ci-Gaba first close. 25,000 jobs target."},
 {investor:"Clean Energy Finance Corp (CEFC)",recipient:"Renewable energy + grid infrastructure",dealType:"Investment",amount:3100000000.0,sector:"energy",sourceType:"Government",city:"Sydney",state:"NSW",country:"Australia",continent:"Oceania",date:"2025",year:2025,source:"Chambers & Partners",notes:"Australian government green bank. Record AUD 4.7B annual commitment. Rewiring the Nation."},
-{investor:"Australian Impact Investments (Aii)",recipient:"Infradebt Ethical Fund + Ngutu College",dealType:"Investment",amount:16000000.0,sector:"infrastructure",sourceType:"VC/PE",city:"Sydney",state:"NSW",country:"Australia",continent:"Oceania",date:"2024",year:2024,source:"ImpactAlpha",notes:"Renewable energy/social infrastructure debt. First Nations college (50% Indigenous enrollment)."}
+{investor:"Australian Impact Investments (Aii)",recipient:"Infradebt Ethical Fund + Ngutu College",dealType:"Investment",amount:16000000.0,sector:"infrastructure",sourceType:"VC/PE",city:"Sydney",state:"NSW",country:"Australia",continent:"Oceania",date:"2024",year:2024,source:"ImpactAlpha",notes:"Renewable energy/social infrastructure debt. First Nations college (50% Indigenous enrollment)."},
+{investor:"Tokyo Metropolitan Government",recipient:"Public-Private Partnership Impact Growth Fund",dealType:"Fund Launch",amount:null,sector:"economic-inclusion",sourceType:"Government",city:"Tokyo",state:"",country:"Japan",continent:"Asia",date:"May 2024",year:2024,source:"SIIF / GSG Impact Japan",notes:"Government-backed fund promoting impact investment through public-private partnerships."},
+{investor:"JICA",recipient:"Aavishkaar",dealType:"Investment",amount:40000000.0,sector:"economic-inclusion",sourceType:"DFI",city:"Tokyo",state:"",country:"Japan",continent:"Asia",date:"2025",year:2025,source:"ImpactAlpha",notes:"$40M investment in India/South Asia-focused impact fund manager. Financial inclusion and livelihoods."}
 ];
 
 function fmt(a){if(!a)return'Undisclosed';if(a>=1e9)return'$'+(a/1e9).toFixed(1)+'B';if(a>=1e6)return'$'+(a/1e6).toFixed(0)+'M';if(a>=1e3)return'$'+(a/1e3).toFixed(0)+'K';return'$'+a}
@@ -242,15 +264,15 @@ function isMobile(){return window.innerWidth<=640}
 function jitter(b,i,s){const a=(i*137.508)*(Math.PI/180);const r=s*Math.sqrt(i+1);return[b[0]+r*Math.cos(a),b[1]+r*Math.sin(a)]}
 const cityGroups={};deals.forEach(d=>{if(!cityGroups[d.city])cityGroups[d.city]=[];cityGroups[d.city].push(d)});
 const filters={sector:new Set(),year:new Set(),type:new Set(),size:new Set(),source:new Set(),geo:new Set()};
-let openCategory='sector',geoAllOpen=false,geoOpenContinent=null,isolatedCountry=null,isoRadioTimer=null,lastFilters=null,undoTimer=null,lastCountry='Brazil';
+let openCategory='sector',geoAllOpen=false,geoOpenContinent=null,geoHoverContinent=null,isolatedCountry=null,isoRadioTimer=null,lastFilters=null,undoTimer=null,lastCountry='Brazil',continentUndo={},fadingIsoCountry=null,fadingIsoTimer=null;
 function totalActive(){let c=0;Object.values(filters).forEach(s=>c+=s.size);return c}
 function matchFilter(d){if(filters.sector.size>0&&!filters.sector.has(d.sector))return false;if(filters.year.size>0&&!filters.year.has(String(d.year)))return false;if(filters.type.size>0&&!filters.type.has(d.dealType))return false;if(filters.source.size>0&&!filters.source.has(d.sourceType))return false;if(filters.geo.size>0&&!filters.geo.has(d.country))return false;if(isolatedCountry&&d.country!==isolatedCountry)return false;if(filters.size.size>0){let m=false;filters.size.forEach(sid=>{const r=SIZE_RANGES.find(x=>x.id===sid);if(!r)return;if(r.min===null){if(d.amount===null)m=true}else if(d.amount!==null&&d.amount>=r.min&&d.amount<r.max)m=true});if(!m)return false}return true}
 function getFiltered(){return deals.filter(matchFilter)}
 function saveFiltersSnapshot(){const snap={};Object.entries(filters).forEach(([k,s])=>snap[k]=new Set(s));snap._isolated=isolatedCountry;return snap}
 function restoreFiltersSnapshot(snap){if(!snap)return;Object.entries(snap).forEach(([k,s])=>{if(k==='_isolated'){isolatedCountry=s}else{filters[k]=new Set(s)}})}
-function clearAll(){lastFilters=saveFiltersSnapshot();Object.values(filters).forEach(s=>s.clear());isolatedCountry=null}
+function clearAll(){lastFilters=saveFiltersSnapshot();Object.values(filters).forEach(s=>s.clear());isolatedCountry=null;fadingIsoCountry=null;if(fadingIsoTimer)clearTimeout(fadingIsoTimer)}
 function getCountriesByContinent(){const m={};deals.forEach(d=>{if(!m[d.continent])m[d.continent]=new Set();m[d.continent].add(d.country)});const r={};Object.keys(m).sort().forEach(c=>{r[c]=[...m[c]].sort()});return r}
-function getSuggestedCountries(){if(typeof map==='undefined'||!map.loaded())return[];const bounds=map.getBounds();const s=new Set();deals.forEach(d=>{const c=CITIES[d.city];if(c&&bounds.contains(c.coords))s.add(d.country)});return[...s].sort()}
+function getSuggestedCountries(){if(typeof map==='undefined'||!map.loaded())return[];const bounds=map.getBounds();const center=map.getCenter();const inView=new Set();const countryCoords={};deals.forEach(d=>{const c=CITIES[d.city];if(c&&bounds.contains(c.coords)){inView.add(d.country);if(!countryCoords[d.country])countryCoords[d.country]=COUNTRY_DATA[d.country]?COUNTRY_DATA[d.country].coords:c.coords}});return[...inView].sort((a,b)=>{const ca=countryCoords[a]||[0,0],cb=countryCoords[b]||[0,0];const da=Math.pow(ca[0]-center.lng,2)+Math.pow(ca[1]-center.lat,2);const db=Math.pow(cb[0]-center.lng,2)+Math.pow(cb[1]-center.lat,2);return da-db})}
 function buildCluster(dl){const g={};dl.forEach(d=>{if(!g[d.city])g[d.city]=[];g[d.city].push(d)});return{type:'FeatureCollection',features:Object.entries(g).map(([c,cd])=>{const m=CITIES[c]||{coords:[-46.6333,-23.5505],state:''};const tc=cd.reduce((s,d)=>s+(d.amount||0),0);const sc=new Set(cd.map(d=>d.sector));const p={city:c,state:m.state,dealCount:cd.length,totalCapital:tc,totalCapitalFormatted:fmt(tc),sectorCount:sc.size,isCluster:cd.length>1};if(cd.length===1){const d=cd[0];Object.assign(p,{investor:d.investor,recipient:d.recipient,dealType:d.dealType,amount:d.amount,amountFormatted:fmt(d.amount),sector:d.sector,sectorLabel:SL[d.sector],color:SC[d.sector],date:d.date,source:d.source,notes:d.notes,country:d.country})}return{type:'Feature',geometry:{type:'Point',coordinates:m.coords},properties:p}})}}
 function buildPins(dl){const g={};dl.forEach(d=>{if(!g[d.city])g[d.city]=[];g[d.city].push(d)});const f=[];Object.entries(g).forEach(([c,cd])=>{const m=CITIES[c]||{coords:[-46.6333,-23.5505]};cd.forEach((d,i)=>{const co=cd.length>1?jitter(m.coords,i,0.012):m.coords;f.push({type:'Feature',geometry:{type:'Point',coordinates:co},properties:{city:d.city,state:d.state,country:d.country,investor:d.investor,recipient:d.recipient,dealType:d.dealType,amount:d.amount,amountFormatted:fmt(d.amount),sector:d.sector,sectorLabel:SL[d.sector]||d.sector,color:SC[d.sector]||SC.other,date:d.date,source:d.source,notes:d.notes,radius:d.amount?Math.max(7,Math.min(18,5+Math.log10(d.amount)*1.8)):7}})})});return{type:'FeatureCollection',features:f}}
 const catDefs=[{id:'sector',label:'Sector'},{id:'year',label:'Year'},{id:'type',label:'Type'},{id:'size',label:'Size'},{id:'source',label:'Source'},{id:'geo',label:'Geo'}];
@@ -269,47 +291,74 @@ filterOptionsEl.appendChild(row)}
 function buildGeoDesktop(){
 const line1=document.createElement('div');line1.className='filter-opts-row';line1.style.alignItems='center';
 // Show all button with chevron
-const allBtn=document.createElement('button');allBtn.className='geo-all-btn';allBtn.innerHTML='Show all <span class="chevron"></span>';if(geoAllOpen)allBtn.classList.add('open');allBtn.addEventListener('click',()=>{geoAllOpen=!geoAllOpen;if(!geoAllOpen)geoOpenContinent=null;buildDesktop()});line1.appendChild(allBtn);
+const allBtn=document.createElement('button');allBtn.className='geo-all-btn';allBtn.innerHTML='Show all <span class="chevron"></span>';if(geoAllOpen)allBtn.classList.add('open');allBtn.addEventListener('click',()=>{geoAllOpen=!geoAllOpen;if(!geoAllOpen){geoOpenContinent=null;geoHoverContinent=null}buildDesktop()});line1.appendChild(allBtn);
 // Clear button for geo
-if(filters.geo.size>0||isolatedCountry){const gc=document.createElement('button');gc.className='cat-clear visible';gc.textContent='Clear';gc.addEventListener('click',()=>{filters.geo.clear();isolatedCountry=null;applyRebuild()});line1.appendChild(gc)}
-// Isolated country pill (if active)
-if(isolatedCountry){const ip=document.createElement('span');ip.className='geo-inview-pill isolated';ip.innerHTML=isolatedCountry+' <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--gt-iso);border:1.5px solid #fff;vertical-align:middle;margin-left:3px"></span>';ip.style.marginLeft='6px';ip.addEventListener('click',()=>{isolatedCountry=null;if(isoRadioTimer)clearTimeout(isoRadioTimer);applyRebuild()});line1.appendChild(ip)}
+if(filters.geo.size>0||isolatedCountry){const gc=document.createElement('button');gc.className='cat-clear visible';gc.textContent='Clear';gc.addEventListener('click',()=>{filters.geo.clear();isolatedCountry=null;fadingIsoCountry=null;if(fadingIsoTimer)clearTimeout(fadingIsoTimer);applyRebuild()});line1.appendChild(gc)}
+// Isolated country pill (if active) — with radio dial inside (#24)
+if(isolatedCountry){const ip=document.createElement('span');ip.className='geo-inview-pill isolated';ip.style.marginLeft='6px';ip.style.display='inline-flex';ip.style.alignItems='center';
+const txt=document.createElement('span');txt.textContent=isolatedCountry;ip.appendChild(txt);
+const rd=document.createElement('span');rd.className='pill-radio active';ip.appendChild(rd);
+ip.addEventListener('click',()=>{fadingIsoCountry=isolatedCountry;isolatedCountry=null;if(isoRadioTimer)clearTimeout(isoRadioTimer);if(fadingIsoTimer)clearTimeout(fadingIsoTimer);fadingIsoTimer=setTimeout(()=>{fadingIsoCountry=null;buildDesktop()},10000);applyRebuild()});line1.appendChild(ip)}
+// Fading iso pill — radio lingers for 10 seconds after de-isolation (#23)
+if(!isolatedCountry&&fadingIsoCountry){const fp=document.createElement('span');fp.className='geo-inview-pill'+(filters.geo.has(fadingIsoCountry)?' selected':'');fp.style.marginLeft='6px';fp.style.display='inline-flex';fp.style.alignItems='center';
+const txt=document.createElement('span');txt.textContent=fadingIsoCountry;fp.appendChild(txt);
+const rd=document.createElement('span');rd.className='pill-radio fading';fp.appendChild(rd);
+setTimeout(()=>{rd.classList.add('fade-out')},8000);
+fp.addEventListener('click',()=>{if(filters.geo.has(fadingIsoCountry))filters.geo.delete(fadingIsoCountry);else filters.geo.add(fadingIsoCountry);applyRebuild()});line1.appendChild(fp)}
 // In-view country pills
-const suggested=getSuggestedCountries().filter(c=>c!==isolatedCountry);const maxShow=8-(isolatedCountry?1:0);const visible=suggested.slice(0,maxShow);const extra=suggested.length-maxShow;
+const excludeFromInview=new Set();if(isolatedCountry)excludeFromInview.add(isolatedCountry);if(fadingIsoCountry)excludeFromInview.add(fadingIsoCountry);
+const suggested=getSuggestedCountries().filter(c=>!excludeFromInview.has(c));const maxShow=8-excludeFromInview.size;const visible=suggested.slice(0,Math.max(0,maxShow));const extra=suggested.length-visible.length;
 visible.forEach(c=>{const pill=document.createElement('span');pill.className='geo-inview-pill'+(filters.geo.has(c)?' selected':'')+(isolatedCountry?' grayed':'');pill.textContent=c;pill.style.marginLeft='6px';pill.addEventListener('click',()=>{if(filters.geo.has(c))filters.geo.delete(c);else filters.geo.add(c);applyRebuild()});line1.appendChild(pill)});
 if(extra>0){const more=document.createElement('span');more.className='geo-more-btn';more.textContent=`+${extra} more`;more.style.marginLeft='6px';more.style.position='relative';more.addEventListener('click',(ev)=>{ev.stopPropagation();let tip=more.querySelector('.geo-more-tip');if(tip){tip.style.display=tip.style.display==='none'?'block':'none'}else{tip=document.createElement('div');tip.className='geo-more-tip';tip.textContent='Click country names on the map or "Show all" to filter deals by country.';tip.style.display='block';tip.style.top='24px';tip.style.left='0';more.appendChild(tip);document.addEventListener('click',()=>{tip.style.display='none'},{once:true})}});line1.appendChild(more)}
 filterOptionsEl.appendChild(line1);
-// Continent dropdown
-if(geoAllOpen){const cbc=getCountriesByContinent();
-Object.keys(cbc).forEach(cont=>{const countries=cbc[cont];const sec=document.createElement('div');sec.className='geo-continent-section';
-const hdr=document.createElement('div');hdr.className='geo-continent-hdr';
-const nm=document.createElement('span');nm.className='geo-continent-name';nm.textContent=cont;hdr.appendChild(nm);
+// Continent tab bar
+if(geoAllOpen){const cbc=getCountriesByContinent();const contNames=Object.keys(cbc);
+const wrap=document.createElement('div');wrap.className='geo-tabbar-wrap';
+const bar=document.createElement('div');bar.className='geo-tabbar';
+let hoverTimer=null;
+contNames.forEach(cont=>{const countries=cbc[cont];const tab=document.createElement('div');tab.className='geo-tab'+(geoOpenContinent===cont?' active':'');
+const nm=document.createElement('span');nm.textContent=cont;tab.appendChild(nm);
 const selCount=countries.filter(c=>filters.geo.has(c)).length;
-if(selCount>0){const cnt=document.createElement('span');cnt.className='geo-continent-count';cnt.textContent=`(${selCount})`;hdr.appendChild(cnt)}
-const actions=document.createElement('div');actions.className='geo-continent-actions';
-const allSel=countries.every(c=>filters.geo.has(c));
-const sa=document.createElement('button');sa.className='geo-sel-all'+(allSel?' all-selected':'');sa.textContent='Select all';sa.addEventListener('click',(ev)=>{ev.stopPropagation();if(allSel)countries.forEach(c=>filters.geo.delete(c));else countries.forEach(c=>filters.geo.add(c));applyRebuild()});actions.appendChild(sa);
-if(selCount>0){const clrC=document.createElement('button');clrC.className='cat-clear visible';clrC.textContent='Clear';clrC.addEventListener('click',(ev)=>{ev.stopPropagation();countries.forEach(c=>filters.geo.delete(c));applyRebuild()});actions.appendChild(clrC)}
-hdr.appendChild(actions);
-const isOpen=geoOpenContinent===cont;
-hdr.style.cursor='pointer';hdr.addEventListener('click',()=>{geoOpenContinent=isOpen?null:cont;buildDesktop()});
-const arrow=document.createElement('span');arrow.textContent=isOpen?'▾':'▸';arrow.style.fontSize='10px';arrow.style.marginLeft='4px';nm.appendChild(arrow);
-sec.appendChild(hdr);
-if(isOpen){const list=document.createElement('div');list.className='geo-country-list';
+const badge=document.createElement('span');badge.className='geo-tab-badge'+(selCount>0?'':' empty');
+if(countries.every(c=>filters.geo.has(c))){badge.textContent='All'}else if(selCount>0){badge.textContent=selCount}else{badge.textContent='0'}
+tab.appendChild(badge);
+tab.addEventListener('click',(ev)=>{ev.stopPropagation();geoOpenContinent=geoOpenContinent===cont?null:cont;geoHoverContinent=null;buildDesktop()});
+tab.addEventListener('mouseenter',()=>{if(hoverTimer)clearTimeout(hoverTimer);if(!geoOpenContinent)geoHoverContinent=cont;buildTabDropdown(wrap,cbc,geoOpenContinent||geoHoverContinent,!!geoOpenContinent)});
+tab.addEventListener('mouseleave',()=>{if(!geoOpenContinent){hoverTimer=setTimeout(()=>{geoHoverContinent=null;const dd=wrap.querySelector('.geo-tab-dropdown');if(dd)dd.classList.remove('visible')},150)}});
+bar.appendChild(tab)});
+wrap.appendChild(bar);
+// Dropdown container
+const dd=document.createElement('div');dd.className='geo-tab-dropdown';
+dd.addEventListener('mouseenter',()=>{if(hoverTimer)clearTimeout(hoverTimer)});
+dd.addEventListener('mouseleave',()=>{if(!geoOpenContinent){hoverTimer=setTimeout(()=>{geoHoverContinent=null;dd.classList.remove('visible')},150)}});
+wrap.appendChild(dd);
+filterOptionsEl.appendChild(wrap);
+if(geoOpenContinent)buildTabDropdown(wrap,cbc,geoOpenContinent,true)}}
+function buildTabDropdown(wrap,cbc,cont,showList){
+if(!cont)return;const dd=wrap.querySelector('.geo-tab-dropdown');if(!dd)return;
+dd.innerHTML='';dd.classList.add('visible');
+const countries=cbc[cont];const selCount=countries.filter(c=>filters.geo.has(c)).length;const allSel=countries.every(c=>filters.geo.has(c));
+const acts=document.createElement('div');acts.className=showList?'geo-tab-actions':'geo-tab-hover-actions';
+const hasUndo=continentUndo[cont]&&selCount===0;
+if(selCount>0||hasUndo){const clrC=document.createElement('button');clrC.className='cat-clear visible';
+if(hasUndo){clrC.textContent='↺';clrC.title='Undo clear';clrC.addEventListener('click',(ev)=>{ev.stopPropagation();continentUndo[cont].forEach(c=>filters.geo.add(c));delete continentUndo[cont];applyRebuild()})}
+else{clrC.textContent='Clear';clrC.addEventListener('click',(ev)=>{ev.stopPropagation();continentUndo[cont]=countries.filter(c=>filters.geo.has(c));countries.forEach(c=>filters.geo.delete(c));applyRebuild();setTimeout(()=>{if(countries.some(c=>filters.geo.has(c))){delete continentUndo[cont];buildDesktop()}},5000)})}
+acts.appendChild(clrC)}
+const sa=document.createElement('button');sa.className='geo-sel-all'+(allSel?' all-selected':'');sa.textContent='Select all';sa.addEventListener('click',(ev)=>{ev.stopPropagation();if(allSel)countries.forEach(c=>filters.geo.delete(c));else countries.forEach(c=>filters.geo.add(c));applyRebuild()});acts.appendChild(sa);
+dd.appendChild(acts);
+if(showList){const list=document.createElement('div');list.className='geo-country-list';
 countries.forEach(c=>{const item=document.createElement('div');item.className='geo-country-item'+(isolatedCountry&&c!==isolatedCountry?' grayed':'');
 const cb=document.createElement('div');cb.className='geo-checkbox'+(filters.geo.has(c)?' checked':'');item.appendChild(cb);
 const lbl=document.createElement('span');lbl.textContent=c;item.appendChild(lbl);
-// Radio dial for isolation
 const radio=document.createElement('div');radio.className='geo-radio'+(isolatedCountry===c?' active':'');radio.title='';
-let hoverTimer=null;
-radio.addEventListener('mouseenter',()=>{hoverTimer=setTimeout(()=>{radio.title='Filter '+c+' only'},3000)});
-radio.addEventListener('mouseleave',()=>{if(hoverTimer)clearTimeout(hoverTimer);radio.title=''});
-radio.addEventListener('click',(ev)=>{ev.stopPropagation();if(isolatedCountry===c){isolatedCountry=null;radio.classList.add('fading');if(isoRadioTimer)clearTimeout(isoRadioTimer);isoRadioTimer=setTimeout(()=>{applyRebuild()},0)}else{isolatedCountry=c}applyRebuild()});
+let ht=null;
+radio.addEventListener('mouseenter',()=>{ht=setTimeout(()=>{radio.title='Filter '+c+' only'},3000)});
+radio.addEventListener('mouseleave',()=>{if(ht)clearTimeout(ht);radio.title=''});
+radio.addEventListener('click',(ev)=>{ev.stopPropagation();if(isolatedCountry===c){fadingIsoCountry=c;isolatedCountry=null;radio.classList.add('fading');if(isoRadioTimer)clearTimeout(isoRadioTimer);if(fadingIsoTimer)clearTimeout(fadingIsoTimer);fadingIsoTimer=setTimeout(()=>{fadingIsoCountry=null;buildDesktop()},10000);isoRadioTimer=setTimeout(()=>{applyRebuild()},0)}else{isolatedCountry=c;fadingIsoCountry=null;if(fadingIsoTimer)clearTimeout(fadingIsoTimer)}applyRebuild()});
 item.appendChild(radio);
 item.addEventListener('click',()=>{if(filters.geo.has(c))filters.geo.delete(c);else filters.geo.add(c);applyRebuild()});
 list.appendChild(item)});
-sec.appendChild(list)}
-filterOptionsEl.appendChild(sec)})}}
+dd.appendChild(list)}}
 function applyRebuild(){const fl=getFiltered();map.getSource('clusters').setData(buildCluster(fl));map.getSource('pins').setData(buildPins(fl));hideOv();updateStats(fl);buildDesktop();updateMobileUI();
 // Handle undo timer
 if(totalActive()>0&&lastFilters){if(undoTimer)clearTimeout(undoTimer);undoTimer=setTimeout(()=>{lastFilters=null;buildDesktop();updateMobileUI()},5000)}}
@@ -337,10 +386,16 @@ const arrow=document.createElement('span');arrow.textContent=isOpen?'▾':'▸';
 ch.appendChild(cn);ch.appendChild(arrow);
 const selCount=countries.filter(c=>filters.geo.has(c)).length;
 if(selCount>0){const cnt=document.createElement('span');cnt.style.cssText='font-size:9px;color:var(--gt-muted)';cnt.textContent=`(${selCount})`;ch.appendChild(cnt)}
-// Select all + Clear
+// Select all + Clear (Clear to LEFT of Select all)
 const allSel=countries.every(c=>filters.geo.has(c));
-const sa=document.createElement('button');sa.className='geo-sel-all'+(allSel?' all-selected':'');sa.textContent='Select all';sa.style.marginLeft='auto';sa.addEventListener('click',(ev)=>{ev.stopPropagation();if(allSel)countries.forEach(c=>filters.geo.delete(c));else countries.forEach(c=>filters.geo.add(c));applyRebuild();buildMobile()});ch.appendChild(sa);
-if(selCount>0){const clrC=document.createElement('button');clrC.className='geo-sel-all';clrC.textContent='Clear';clrC.addEventListener('click',(ev)=>{ev.stopPropagation();countries.forEach(c=>filters.geo.delete(c));applyRebuild();buildMobile()});ch.appendChild(clrC)}
+const btnWrap=document.createElement('span');btnWrap.style.cssText='display:flex;gap:4px;margin-left:auto;align-items:center';
+const hasUndo=continentUndo[cont]&&selCount===0;
+if(selCount>0||hasUndo){const clrC=document.createElement('button');clrC.className='geo-sel-all';
+if(hasUndo){clrC.textContent='↺';clrC.addEventListener('click',(ev)=>{ev.stopPropagation();continentUndo[cont].forEach(c=>filters.geo.add(c));delete continentUndo[cont];applyRebuild();buildMobile()})}
+else{clrC.textContent='Clear';clrC.addEventListener('click',(ev)=>{ev.stopPropagation();continentUndo[cont]=countries.filter(c=>filters.geo.has(c));countries.forEach(c=>filters.geo.delete(c));applyRebuild();buildMobile();setTimeout(()=>{if(countries.some(c=>filters.geo.has(c))){delete continentUndo[cont];buildMobile()}},5000)})}
+btnWrap.appendChild(clrC)}
+const sa=document.createElement('button');sa.className='geo-sel-all'+(allSel?' all-selected':'');sa.textContent='Select all';sa.addEventListener('click',(ev)=>{ev.stopPropagation();if(allSel)countries.forEach(c=>filters.geo.delete(c));else countries.forEach(c=>filters.geo.add(c));applyRebuild();buildMobile()});btnWrap.appendChild(sa);
+ch.appendChild(btnWrap);
 ch.addEventListener('click',()=>{geoOpenContinent=isOpen?null:cont;buildMobile()});
 sec.appendChild(ch);
 if(isOpen){const list=document.createElement('div');list.style.cssText='max-height:240px;overflow-y:auto;padding:2px 0 2px 4px';
@@ -366,6 +421,13 @@ const ZT=9,CZT=6;
 const initCenter=window.innerWidth<=640?[-65,15]:[-40,15];
 const map=new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/light-v11',center:initCenter,zoom:2.5,minZoom:2,maxZoom:16,attributionControl:false});
 map.addControl(new mapboxgl.AttributionControl({compact:true}),'bottom-right');
+// Spinning globe - slow rotation over Atlantic, stops on interaction
+let spinning=true;let lastSpin=0;
+function spinGlobe(ts){if(!spinning)return;if(ts-lastSpin>50){const center=map.getCenter();map.setCenter([center.lng-0.06,center.lat],{duration:0});lastSpin=ts}requestAnimationFrame(spinGlobe)}
+requestAnimationFrame(spinGlobe);
+['mousedown','touchstart','wheel','dblclick'].forEach(ev=>map.getCanvas().addEventListener(ev,()=>{spinning=false},{once:true}));
+map.on('dragstart',()=>{spinning=false});
+map.on('zoomstart',()=>{spinning=false});
 map.on('load',()=>{
 // Filter out GT-labeled countries from base map
 try{const gtNames=Object.keys(COUNTRY_DATA);if(map.getLayer('country-label'))map.setFilter('country-label',['!',['match',['get','name_en'],gtNames,true,false]])}catch(e){}
