@@ -368,10 +368,16 @@ function snippetCidades(fl,uniqueCountries,topCity,uniqueCities){
   return`—em ${cc} países e ${cities} cidades. A dispersão geográfica reflete um ecossistema que opera em escala internacional, com fluxos de capital conectando mercados em diferentes estágios de desenvolvimento.`;
 }
 
-function buildReportHTML(fl){
+// Bug 2: dynamic font scaling for large capital values
+function getStatFontSize(val,base){const l=val.length;if(l<=6)return base;if(l<=9)return+(base*0.9).toFixed(1);return+(base*0.8).toFixed(1);}
+// Bug 4: rasterize SVG to PNG data-URL so html2canvas renders it reliably
+function rasterizeSvg(svgStr,w,h){return new Promise(res=>{const blob=new Blob([svgStr],{type:'image/svg+xml'});const burl=URL.createObjectURL(blob);const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=w*2;c.height=h*2;const ctx=c.getContext('2d');ctx.scale(2,2);ctx.drawImage(img,0,0,w,h);URL.revokeObjectURL(burl);res(c.toDataURL('image/png'));};img.onerror=()=>{URL.revokeObjectURL(burl);res('');};img.src=burl;});}
+
+function buildReportHTML(fl,logoSrc,liSrc,ssSrc){
   const today=new Date();
   const dateStr=today.getDate()+' de '+MONTHS_PT[today.getMonth()];
   const totalCapital=fl.reduce((s,d)=>s+(d.amount||0),0);
+  const capStr=fmtPT(totalCapital);
   const uniqueCities=new Set(fl.map(d=>d.city));
   const uniqueSectors=new Set(fl.map(d=>d.sector));
   const uniqueTypes=new Set(fl.map(d=>d.dealType));
@@ -387,23 +393,37 @@ function buildReportHTML(fl){
   const display=sorted.length<=7?sorted:sorted.slice(0,5);
   const tableNote=sorted.length<=7?sorted.length+' operaç'+(sorted.length===1?'ão':'ões'):display.length+' de '+sorted.length+' operações · por volume';
 
-  const tMark=`<svg viewBox="0 0 1500 1500" xmlns="http://www.w3.org/2000/svg" style="height:38px;width:auto"><g transform="translate(110,0)"><g><g transform="translate(11,0)"><g fill="#325230"><g transform="translate(0.939,1253.113)"><path d="M 165.516 -800.563 C 165.516 -678.227 192.797 -616.758 247.359 -616.156 C 256.953 -616.156 271.946 -625.148 292.344 -643.141 C 326.52 -668.328 355.301 -681.82 378.688 -683.625 C 417.07 -683.625 438.063 -665.332 441.656 -628.75 C 443.457 -604.164 432.063 -584.977 407.469 -571.188 C 394.883 -564.594 381.691 -561.297 367.891 -561.297 C 299.535 -561.297 250.066 -566.391 219.484 -576.578 C 144.523 -601.172 92.953 -651.547 64.766 -727.703 C 52.172 -763.078 45.875 -800.555 45.875 -840.141 C 45.875 -954.078 99.242 -1026.035 205.984 -1056.016 C 238.961 -1065.609 274.941 -1070.406 313.922 -1070.406 L 995.75 -1070.406 C 1061.719 -1070.406 1104.297 -1084.195 1123.484 -1111.781 C 1136.078 -1130.977 1142.375 -1159.766 1142.375 -1198.141 L 1180.156 -1198.141 C 1203.539 -1119.586 1203.238 -1067.863 1179.25 -1042.969 C 1155.258 -1018.082 1115.383 -1003.844 1059.625 -1000.25 L 719.609 -1000.25 L 719.609 -188 C 719.609 -132.821 723.504 -96.988 731.297 -80.5 C 739.086 -64.008 757.379 -52.77 786.172 -46.781 L 838.344 -36.875 L 838.344 0 L 489.328 0 L 489.328 -37.781 L 551.391 -51.266 C 573.578 -56.066 587.375 -62.961 592.781 -71.953 C 597.571 -82.148 599.969 -104.039 599.969 -137.625 L 599.969 -1000.25 L 303.141 -1000.25 C 233.578 -1000.25 190.098 -958.875 172.703 -876.125 C 167.91 -852.727 165.516 -827.539 165.516 -800.563 Z"/></g></g></g></g><g transform="translate(0,447)"><g fill="#325230"><g transform="translate(1114.484,1046.847)"><path d="M -408.188 -573.547 L -408.188 -1015.984 L -399.25 -1015.984 C -399.25 -991.16 -390.555 -970.055 -373.172 -952.672 C -355.797 -935.297 -334.691 -926.609 -309.859 -926.609 L 0 -926.609 C -10.926 -908.734 -19.863 -889.363 -26.813 -868.5 C -33.77 -847.645 -37.25 -823.316 -37.25 -795.516 C -37.25 -759.754 -34.266 -728.219 -28.297 -700.906 C -22.336 -673.602 -16.129 -646.539 -9.672 -619.719 C -3.223 -592.906 0 -562.613 0 -528.844 C 0 -464.289 -13.406 -403.707 -40.219 -347.094 C -67.031 -290.488 -104.52 -240.582 -152.688 -197.375 C -200.863 -154.176 -256.484 -120.41 -319.547 -96.078 C -382.609 -71.754 -449.895 -59.594 -521.406 -59.594 C -592.906 -59.594 -660.188 -71.754 -723.25 -96.078 C -786.321 -120.41 -841.941 -154.176 -890.109 -197.375 C -938.273 -240.582 -975.766 -290.488 -1002.578 -347.094 C -1029.391 -403.707 -1042.797 -464.289 -1042.797 -528.844 C -1042.797 -582.477 -1033.609 -633.129 -1015.234 -680.797 C -996.867 -728.473 -973.285 -770.93 -944.484 -808.172 C -915.68 -845.41 -884.395 -874.461 -850.625 -895.328 C -834.738 -905.254 -818.352 -912.945 -801.469 -918.406 C -784.582 -923.875 -768.195 -926.609 -752.313 -926.609 C -708.613 -926.609 -671.117 -910.961 -639.828 -879.672 C -608.547 -848.391 -592.906 -810.898 -592.906 -767.203 C -592.906 -723.504 -608.547 -686.016 -639.828 -654.734 C -671.117 -623.453 -708.613 -607.813 -752.313 -607.813 C -777.133 -607.813 -798.234 -612.281 -815.609 -621.219 C -832.992 -630.156 -848.391 -640.332 -861.797 -651.75 C -875.203 -663.176 -888.609 -673.359 -902.016 -682.297 C -915.43 -691.234 -931.078 -695.703 -948.953 -695.703 C -972.785 -695.703 -990.91 -685.27 -1003.328 -664.406 C -1015.742 -643.551 -1023.938 -619.961 -1027.906 -593.641 C -1031.875 -567.328 -1033.859 -545.727 -1033.859 -528.844 C -1033.859 -494.082 -1010.77 -462.051 -964.594 -432.75 C -918.414 -403.457 -856.594 -380.117 -779.125 -362.734 C -701.656 -345.359 -615.75 -336.672 -521.406 -336.672 C -427.051 -336.672 -341.141 -345.359 -263.672 -362.734 C -186.211 -380.117 -124.391 -403.457 -78.203 -432.75 C -32.023 -462.051 -8.938 -494.082 -8.938 -528.844 C -8.938 -545.727 -10.922 -567.828 -14.891 -595.141 C -18.867 -622.453 -27.313 -645.547 -40.219 -664.422 L -309.859 -664.422 C -334.691 -664.422 -355.797 -655.727 -373.172 -638.344 C -390.555 -620.969 -399.25 -599.367 -399.25 -573.547 Z"/></g></g></g></g></svg>`;
-  const liSvg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" style="width:28px;height:28px;display:inline-block"><rect width="28" height="28" rx="5" fill="#0A66C2"/><path d="M9 12h3.5v10H9zm1.75-5.5a2 2 0 110 4 2 2 0 010-4zm5.25 5.5h3.4v1.4h.05c.47-.9 1.62-1.8 3.34-1.8 3.57 0 4.21 2.35 4.21 5.4V22H23.5v-6.4c0-1.53-.03-3.5-2.13-3.5-2.14 0-2.47 1.67-2.47 3.4V22H15.5V12z" fill="#fff"/></svg>`;
-  const ssSvg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" style="width:28px;height:28px;display:inline-block"><rect width="28" height="28" rx="5" fill="#FF6719"/><rect x="4" y="6" width="20" height="2.5" fill="#fff"/><rect x="4" y="12" width="20" height="2.5" fill="#fff"/><polygon points="4,18 24,18 24,26 14,22 4,26" fill="#fff"/></svg>`;
+  // Bug 4: use pre-rasterized PNG if available, fall back to inline SVG
+  const tMarkSvgInline=`<svg viewBox="0 0 1500 1500" xmlns="http://www.w3.org/2000/svg" style="height:38px;width:auto"><g transform="translate(110,0)"><g><g transform="translate(11,0)"><g fill="#325230"><g transform="translate(0.939,1253.113)"><path d="M 165.516 -800.563 C 165.516 -678.227 192.797 -616.758 247.359 -616.156 C 256.953 -616.156 271.946 -625.148 292.344 -643.141 C 326.52 -668.328 355.301 -681.82 378.688 -683.625 C 417.07 -683.625 438.063 -665.332 441.656 -628.75 C 443.457 -604.164 432.063 -584.977 407.469 -571.188 C 394.883 -564.594 381.691 -561.297 367.891 -561.297 C 299.535 -561.297 250.066 -566.391 219.484 -576.578 C 144.523 -601.172 92.953 -651.547 64.766 -727.703 C 52.172 -763.078 45.875 -800.555 45.875 -840.141 C 45.875 -954.078 99.242 -1026.035 205.984 -1056.016 C 238.961 -1065.609 274.941 -1070.406 313.922 -1070.406 L 995.75 -1070.406 C 1061.719 -1070.406 1104.297 -1084.195 1123.484 -1111.781 C 1136.078 -1130.977 1142.375 -1159.766 1142.375 -1198.141 L 1180.156 -1198.141 C 1203.539 -1119.586 1203.238 -1067.863 1179.25 -1042.969 C 1155.258 -1018.082 1115.383 -1003.844 1059.625 -1000.25 L 719.609 -1000.25 L 719.609 -188 C 719.609 -132.821 723.504 -96.988 731.297 -80.5 C 739.086 -64.008 757.379 -52.77 786.172 -46.781 L 838.344 -36.875 L 838.344 0 L 489.328 0 L 489.328 -37.781 L 551.391 -51.266 C 573.578 -56.066 587.375 -62.961 592.781 -71.953 C 597.571 -82.148 599.969 -104.039 599.969 -137.625 L 599.969 -1000.25 L 303.141 -1000.25 C 233.578 -1000.25 190.098 -958.875 172.703 -876.125 C 167.91 -852.727 165.516 -827.539 165.516 -800.563 Z"/></g></g></g></g><g transform="translate(0,447)"><g fill="#325230"><g transform="translate(1114.484,1046.847)"><path d="M -408.188 -573.547 L -408.188 -1015.984 L -399.25 -1015.984 C -399.25 -991.16 -390.555 -970.055 -373.172 -952.672 C -355.797 -935.297 -334.691 -926.609 -309.859 -926.609 L 0 -926.609 C -10.926 -908.734 -19.863 -889.363 -26.813 -868.5 C -33.77 -847.645 -37.25 -823.316 -37.25 -795.516 C -37.25 -759.754 -34.266 -728.219 -28.297 -700.906 C -22.336 -673.602 -16.129 -646.539 -9.672 -619.719 C -3.223 -592.906 0 -562.613 0 -528.844 C 0 -464.289 -13.406 -403.707 -40.219 -347.094 C -67.031 -290.488 -104.52 -240.582 -152.688 -197.375 C -200.863 -154.176 -256.484 -120.41 -319.547 -96.078 C -382.609 -71.754 -449.895 -59.594 -521.406 -59.594 C -592.906 -59.594 -660.188 -71.754 -723.25 -96.078 C -786.321 -120.41 -841.941 -154.176 -890.109 -197.375 C -938.273 -240.582 -975.766 -290.488 -1002.578 -347.094 C -1029.391 -403.707 -1042.797 -464.289 -1042.797 -528.844 C -1042.797 -582.477 -1033.609 -633.129 -1015.234 -680.797 C -996.867 -728.473 -973.285 -770.93 -944.484 -808.172 C -915.68 -845.41 -884.395 -874.461 -850.625 -895.328 C -834.738 -905.254 -818.352 -912.945 -801.469 -918.406 C -784.582 -923.875 -768.195 -926.609 -752.313 -926.609 C -708.613 -926.609 -671.117 -910.961 -639.828 -879.672 C -608.547 -848.391 -592.906 -810.898 -592.906 -767.203 C -592.906 -723.504 -608.547 -686.016 -639.828 -654.734 C -671.117 -623.453 -708.613 -607.813 -752.313 -607.813 C -777.133 -607.813 -798.234 -612.281 -815.609 -621.219 C -832.992 -630.156 -848.391 -640.332 -861.797 -651.75 C -875.203 -663.176 -888.609 -673.359 -902.016 -682.297 C -915.43 -691.234 -931.078 -695.703 -948.953 -695.703 C -972.785 -695.703 -990.91 -685.27 -1003.328 -664.406 C -1015.742 -643.551 -1023.938 -619.961 -1027.906 -593.641 C -1031.875 -567.328 -1033.859 -545.727 -1033.859 -528.844 C -1033.859 -494.082 -1010.77 -462.051 -964.594 -432.75 C -918.414 -403.457 -856.594 -380.117 -779.125 -362.734 C -701.656 -345.359 -615.75 -336.672 -521.406 -336.672 C -427.051 -336.672 -341.141 -345.359 -263.672 -362.734 C -186.211 -380.117 -124.391 -403.457 -78.203 -432.75 C -32.023 -462.051 -8.938 -494.082 -8.938 -528.844 C -8.938 -545.727 -10.922 -567.828 -14.891 -595.141 C -18.867 -622.453 -27.313 -645.547 -40.219 -664.422 L -309.859 -664.422 C -334.691 -664.422 -355.797 -655.727 -373.172 -638.344 C -390.555 -620.969 -399.25 -599.367 -399.25 -573.547 Z"/></g></g></g></g></svg>`;
+  const liSvgInline=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" style="width:28px;height:28px;display:inline-block"><rect width="28" height="28" rx="5" fill="#0A66C2"/><path d="M9 12h3.5v10H9zm1.75-5.5a2 2 0 110 4 2 2 0 010-4zm5.25 5.5h3.4v1.4h.05c.47-.9 1.62-1.8 3.34-1.8 3.57 0 4.21 2.35 4.21 5.4V22H23.5v-6.4c0-1.53-.03-3.5-2.13-3.5-2.14 0-2.47 1.67-2.47 3.4V22H15.5V12z" fill="#fff"/></svg>`;
+  const ssSvgInline=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" style="width:28px;height:28px;display:inline-block"><rect width="28" height="28" rx="5" fill="#FF6719"/><rect x="4" y="6" width="20" height="2.5" fill="#fff"/><rect x="4" y="12" width="20" height="2.5" fill="#fff"/><polygon points="4,18 24,18 24,26 14,22 4,26" fill="#fff"/></svg>`;
+  const logoEl=logoSrc?`<img src="${logoSrc}" style="height:38px;width:auto;display:block" alt="">`:tMarkSvgInline;
+  const liEl=liSrc?`<img src="${liSrc}" style="width:28px;height:28px;display:inline-block" alt="">`:liSvgInline;
+  const ssEl=ssSrc?`<img src="${ssSrc}" style="width:28px;height:28px;display:inline-block" alt="">`:ssSvgInline;
 
+  // Bug 2: dynamic font size for capital value
+  const capFontSize=getStatFontSize(capStr,23);
+
+  // Bug 3: table rows — single line, truncate with ellipsis
   const tableRows=display.map(d=>{
     const tag=SECTOR_TAG[d.sector]||SECTOR_TAG._default;
     const sLabel=SECTOR_PT_LABEL[d.sector]||d.sector;
     const tLabel=DEAL_TYPE_PT[d.dealType]||d.dealType;
     const raw=d.dealType==='Fund Launch'?d.recipient:d.investor+' → '+d.recipient;
     const name=raw.length>42?raw.slice(0,40)+'…':raw;
-    return`<tr><td style="padding:7px 10px 7px 0;font-family:Poppins,sans-serif;font-size:10pt;font-weight:700;color:#111B1E;border-bottom:1px solid #E8E4DE">${name}</td><td style="padding:7px 8px;font-family:Poppins,sans-serif;font-size:10pt;font-weight:700;color:#111B1E;border-bottom:1px solid #E8E4DE;white-space:nowrap">${fmtPT(d.amount)}</td><td style="padding:7px 8px;font-family:Poppins,sans-serif;font-size:10pt;color:#5A6B62;border-bottom:1px solid #E8E4DE;white-space:nowrap">${d.city}</td><td style="padding:7px 8px;border-bottom:1px solid #E8E4DE"><span style="display:inline-block;padding:2px 10px;border-radius:12px;font-family:Poppins,sans-serif;font-size:9pt;color:${tag.text};background:${tag.bg}">${sLabel}</span></td><td style="padding:7px 0 7px 8px;border-bottom:1px solid #E8E4DE"><span style="display:inline-block;padding:2px 10px;border-radius:12px;font-family:Poppins,sans-serif;font-size:9pt;color:#5A6B62;background:#E8E6E4">${tLabel}</span></td></tr>`;
+    return`<tr>
+<td style="padding:7px 10px 7px 0;font-family:Poppins,sans-serif;font-size:10pt;font-weight:700;color:#111B1E;border-bottom:1px solid #E8E4DE;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</td>
+<td style="padding:7px 8px;font-family:Poppins,sans-serif;font-size:10pt;font-weight:700;color:#111B1E;border-bottom:1px solid #E8E4DE;white-space:nowrap">${fmtPT(d.amount)}</td>
+<td style="padding:7px 8px;font-family:Poppins,sans-serif;font-size:10pt;color:#5A6B62;border-bottom:1px solid #E8E4DE;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.city}</td>
+<td style="padding:7px 8px;border-bottom:1px solid #E8E4DE;overflow:hidden"><span style="display:inline-block;padding:2px 10px;border-radius:12px;font-family:Poppins,sans-serif;font-size:9pt;color:${tag.text};background:${tag.bg};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:148px">${sLabel}</span></td>
+<td style="padding:7px 0 7px 8px;border-bottom:1px solid #E8E4DE;overflow:hidden"><span style="display:inline-block;padding:2px 10px;border-radius:12px;font-family:Poppins,sans-serif;font-size:9pt;color:#5A6B62;background:#E8E6E4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:108px">${tLabel}</span></td>
+</tr>`;
   }).join('');
 
   return`<div id="gt-report-page" style="width:794px;height:1122px;background:#FFFAEE;font-family:Poppins,sans-serif;color:#111B1E;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden">
 <div style="height:5px;background:linear-gradient(to right,#325230,#6B7D89);flex-shrink:0"></div>
 <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 28px 10px;flex-shrink:0">
-  <div style="display:flex;align-items:center;gap:8px">${tMark}<div style="font-family:Poppins,sans-serif;font-size:9pt;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#325230;line-height:1.25">GIVING<br>TREE</div></div>
+  <div style="display:flex;align-items:center;gap:8px">${logoEl}<div style="font-family:Poppins,sans-serif;font-size:9pt;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#325230;line-height:1.25">GIVING<br>TREE</div></div>
   <div style="text-align:center"><div style="font-family:Poppins,sans-serif;font-size:10pt;color:#7A8B82;letter-spacing:.14em;margin-bottom:1px">PANORAMA</div><div style="font-family:'Playfair Display',Georgia,serif;font-size:30pt;font-weight:700;line-height:1"><span style="color:#325230">Impact </span><span style="color:#6B7D89">Capital</span></div></div>
   <div style="text-align:right"><div style="font-family:Poppins,sans-serif;font-size:11pt;color:#B84E1A;margin-bottom:3px">DEMO</div><div style="font-family:Poppins,sans-serif;font-size:10pt;color:#111B1E;line-height:1.5">Gerado<br>${dateStr}<br>2026</div></div>
 </div>
@@ -412,15 +432,15 @@ function buildReportHTML(fl){
   <div style="text-align:center">
     <div style="font-family:Poppins,sans-serif;font-size:9pt;color:#6B7D89;margin-bottom:8px">Mapeamento</div>
     <div style="display:flex;gap:18px;justify-content:center">
-      <div style="width:135px;border:1.5px solid #325230;border-radius:8px;background:#FFFAEE;padding:16px;text-align:center"><div style="font-family:Poppins,sans-serif;font-size:23pt;color:#1B4332;line-height:1.1">${fl.length}</div><div style="font-family:Poppins,sans-serif;font-size:8pt;font-weight:300;color:#111B1E;margin-top:4px">operações</div></div>
-      <div style="width:135px;border:1.5px solid #325230;border-radius:8px;background:#FFFAEE;padding:16px;text-align:center"><div style="font-family:Poppins,sans-serif;font-size:23pt;color:#1B4332;line-height:1.1">${fmtPT(totalCapital)}</div><div style="font-family:Poppins,sans-serif;font-size:8pt;font-weight:300;color:#111B1E;margin-top:4px">em capital (USD)</div></div>
+      <div style="width:135px;height:88px;border:1.5px solid #325230;border-radius:8px;background:#FFFAEE;padding:16px;text-align:center;box-sizing:border-box;overflow:hidden"><div style="font-family:Poppins,sans-serif;font-size:23pt;color:#1B4332;line-height:1.1;white-space:nowrap">${fl.length}</div><div style="font-family:Poppins,sans-serif;font-size:8pt;font-weight:300;color:#111B1E;margin-top:4px">operações</div></div>
+      <div style="width:135px;height:88px;border:1.5px solid #325230;border-radius:8px;background:#FFFAEE;padding:16px;text-align:center;box-sizing:border-box;overflow:hidden"><div style="font-family:Poppins,sans-serif;font-size:${capFontSize}pt;color:#1B4332;line-height:1.1;white-space:nowrap">${capStr}</div><div style="font-family:Poppins,sans-serif;font-size:8pt;font-weight:300;color:#111B1E;margin-top:4px">em capital (USD)</div></div>
     </div>
   </div>
   <div>
     <div style="display:flex;gap:12px;margin-bottom:10px">
-      <div style="flex:1;background:#6B7D89;border-radius:8px;padding:12px 6px;text-align:center"><div style="font-family:Poppins,sans-serif;font-size:15pt;font-weight:700;color:#FFFAEE;line-height:1.1">${modalCount}</div><div style="font-family:Poppins,sans-serif;font-size:6.5pt;font-weight:700;color:#FFFAEE;margin-top:3px">modalidades</div></div>
-      <div style="flex:1;background:#4E614D;border-radius:8px;padding:12px 6px;text-align:center"><div style="font-family:Poppins,sans-serif;font-size:15pt;font-weight:700;color:#FFFAEE;line-height:1.1">${uniqueSectors.size}</div><div style="font-family:Poppins,sans-serif;font-size:6.5pt;font-weight:700;color:#FFFAEE;margin-top:3px">áreas de impacto</div></div>
-      <div style="flex:1;background:#B66734;border-radius:8px;padding:12px 6px;text-align:center"><div style="font-family:Poppins,sans-serif;font-size:15pt;font-weight:700;color:#FFFAEE;line-height:1.1">${uniqueCities.size}</div><div style="font-family:Poppins,sans-serif;font-size:6.5pt;font-weight:700;color:#FFFAEE;margin-top:3px">cidades</div></div>
+      <div style="flex:1;background:#6B7D89;border-radius:8px;padding:12px 6px;text-align:center"><div style="font-family:Poppins,sans-serif;font-size:15pt;font-weight:700;color:#FFFAEE;line-height:1.1;white-space:nowrap">${modalCount}</div><div style="font-family:Poppins,sans-serif;font-size:6.5pt;font-weight:700;color:#FFFAEE;margin-top:3px">modalidades</div></div>
+      <div style="flex:1;background:#4E614D;border-radius:8px;padding:12px 6px;text-align:center"><div style="font-family:Poppins,sans-serif;font-size:15pt;font-weight:700;color:#FFFAEE;line-height:1.1;white-space:nowrap">${uniqueSectors.size}</div><div style="font-family:Poppins,sans-serif;font-size:6.5pt;font-weight:700;color:#FFFAEE;margin-top:3px">áreas de impacto</div></div>
+      <div style="flex:1;background:#B66734;border-radius:8px;padding:12px 6px;text-align:center"><div style="font-family:Poppins,sans-serif;font-size:15pt;font-weight:700;color:#FFFAEE;line-height:1.1;white-space:nowrap">${uniqueCities.size}</div><div style="font-family:Poppins,sans-serif;font-size:6.5pt;font-weight:700;color:#FFFAEE;margin-top:3px">cidades</div></div>
     </div>
     <div style="display:flex;gap:12px">
       <div style="flex:1;display:flex;gap:6px"><div style="width:4px;background:#6B7D89;border-radius:2px;flex-shrink:0"></div><div style="font-family:Poppins,sans-serif;font-size:8.5pt;color:#111B1E;line-height:1.55">${s1}</div></div>
@@ -430,8 +450,15 @@ function buildReportHTML(fl){
   </div>
   <div>
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px"><div style="font-family:Poppins,sans-serif;font-size:12pt;font-weight:700;color:#111B1E">DEALS EM DESTAQUE</div><div style="font-family:Poppins,sans-serif;font-size:8pt;color:#7A8B82">${tableNote}</div></div>
-    <table style="width:100%;border-collapse:collapse">
-      <thead><tr style="border-top:1px solid #BBCBBD;border-bottom:1px solid #BBCBBD"><th style="text-align:left;font-family:Poppins,sans-serif;font-size:8.5pt;font-weight:700;color:#7A8B82;padding:5px 10px 5px 0;text-transform:uppercase">INVESTIDOR / FUNDO</th><th style="text-align:left;font-family:Poppins,sans-serif;font-size:8.5pt;font-weight:700;color:#7A8B82;padding:5px 8px;white-space:nowrap">VALOR <span style="font-size:7pt;font-weight:300">(USD)</span></th><th style="text-align:left;font-family:Poppins,sans-serif;font-size:8.5pt;font-weight:700;color:#7A8B82;padding:5px 8px;text-transform:uppercase">CIDADE</th><th style="text-align:left;font-family:Poppins,sans-serif;font-size:8.5pt;font-weight:700;color:#7A8B82;padding:5px 8px;text-transform:uppercase">ÁREA DE IMPACTO</th><th style="text-align:left;font-family:Poppins,sans-serif;font-size:8.5pt;font-weight:700;color:#7A8B82;padding:5px 0 5px 8px;text-transform:uppercase">TIPO DE INVEST.</th></tr></thead>
+    <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+      <colgroup><col style="width:29%"><col style="width:14%"><col style="width:18%"><col style="width:22%"><col style="width:17%"></colgroup>
+      <thead><tr style="border-top:1px solid #BBCBBD;border-bottom:1px solid #BBCBBD">
+        <th style="text-align:left;font-family:Poppins,sans-serif;font-size:8.5pt;font-weight:700;color:#7A8B82;padding:5px 10px 5px 0;text-transform:uppercase;white-space:nowrap;overflow:hidden">INVESTIDOR / FUNDO</th>
+        <th style="text-align:left;font-family:Poppins,sans-serif;font-size:8.5pt;font-weight:700;color:#7A8B82;padding:5px 8px;white-space:nowrap">VALOR <span style="font-size:7pt;font-weight:300">(USD)</span></th>
+        <th style="text-align:left;font-family:Poppins,sans-serif;font-size:8.5pt;font-weight:700;color:#7A8B82;padding:5px 8px;text-transform:uppercase;white-space:nowrap;overflow:hidden">CIDADE</th>
+        <th style="text-align:left;font-family:Poppins,sans-serif;font-size:8.5pt;font-weight:700;color:#7A8B82;padding:5px 8px;text-transform:uppercase;white-space:nowrap;overflow:hidden">ÁREA DE IMPACTO</th>
+        <th style="text-align:left;font-family:Poppins,sans-serif;font-size:8.5pt;font-weight:700;color:#7A8B82;padding:5px 0 5px 8px;text-transform:uppercase;white-space:nowrap;overflow:hidden">TIPO DE INVEST.</th>
+      </tr></thead>
       <tbody>${tableRows}</tbody>
     </table>
   </div>
@@ -444,38 +471,64 @@ function buildReportHTML(fl){
 <div style="background:#F5F3F0;padding:13px 28px 10px;flex-shrink:0">
   <div style="font-family:Poppins,sans-serif;font-size:12pt;font-weight:700;color:#1B4332;margin-bottom:4px">O Money Map está em construção — e queremos ouvir você.</div>
   <div style="font-family:Poppins,sans-serif;font-size:10pt;color:#111B1E;line-height:1.45;margin-bottom:5px">Estamos construindo a inteligência que o setor de impacto ainda não tem. Suas impressões, conexões e ideias nos ajudam a entregar isso mais rápido a você.</div>
-  <div style="font-family:Poppins,sans-serif;font-size:10pt;margin-bottom:9px"><a href="https://givingtree.com.br/map" style="color:#1B4332;font-weight:700;text-decoration:underline">GivingTree</a><span style="color:#1B4332"> Money Map · givingtree.com.br/map</span></div>
+  <div style="font-family:Poppins,sans-serif;font-size:10pt;margin-bottom:9px"><a href="https://givingtree.com.br/map" target="_blank" rel="noopener" style="color:#1B4332;font-weight:700;text-decoration:underline">GivingTree Money Map · givingtree.com.br/map</a></div>
   <div style="text-align:center;margin-bottom:9px"><a href="https://www.givingtree.com.br/contato" style="display:inline-block;background:#D45B1A;color:#FFFAEE;font-family:Poppins,sans-serif;font-size:11pt;font-weight:700;padding:9px 30px;border-radius:8px;text-decoration:none">Contato | Feedback →</a></div>
-  <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px"><span style="font-family:Poppins,sans-serif;font-size:10.5pt;font-weight:600;color:#111B1E">Acompanhe antes de todo mundo:</span><a href="https://www.linkedin.com/company/giving-tr" style="line-height:0;text-decoration:none">${liSvg}</a><a href="https://givingtree.substack.com" style="line-height:0;text-decoration:none">${ssSvg}</a></div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:20px;margin-bottom:8px"><span style="font-family:Poppins,sans-serif;font-size:10.5pt;font-weight:600;color:#111B1E">Acompanhe antes de todo mundo:</span><a href="https://www.linkedin.com/company/giving-tr" style="line-height:0;text-decoration:none">${liEl}</a><a href="https://givingtree.substack.com" style="line-height:0;text-decoration:none">${ssEl}</a></div>
   <div style="font-family:Poppins,sans-serif;font-size:6.8pt;color:#111B1E;line-height:1.4"><strong>Aviso legal:</strong> Este documento é uma demonstração de um relatório customizado gerado automaticamente pela plataforma GivingTree, que, na data de produção, está em fase de desenvolvimento. Conteúdo e formato estão sujeitos a revisão. Nesta demonstração, valores representam o volume de capital identificado nas operações mapeadas e podem incluir erros ou sobreposições entre compromissos e aportes. Operações atribuídas a uma cidade podem abranger sua região metropolitana. Dados coletados de fontes públicas. Este documento não constitui aconselhamento financeiro.</div>
 </div>
 </div>`;
 }
 
-function generateReport(){
+// Bug 1: open PDF in new tab instead of triggering download
+// Bug 4: pre-rasterize SVGs so html2canvas renders them correctly
+async function generateReport(){
   const fl=getFiltered();
   if(fl.length===0){alert('Nenhuma operação encontrada com os filtros atuais.');return}
   if(typeof html2pdf==='undefined'){alert('Biblioteca de PDF ainda carregando. Tente novamente.');return}
   const btn=document.getElementById('gerarRelatorioBtn');
   if(btn){btn.textContent='Gerando…';btn.disabled=true}
+
+  const tMarkStr=`<svg viewBox="0 0 1500 1500" xmlns="http://www.w3.org/2000/svg"><g transform="translate(110,0)"><g><g transform="translate(11,0)"><g fill="#325230"><g transform="translate(0.939,1253.113)"><path d="M 165.516 -800.563 C 165.516 -678.227 192.797 -616.758 247.359 -616.156 C 256.953 -616.156 271.946 -625.148 292.344 -643.141 C 326.52 -668.328 355.301 -681.82 378.688 -683.625 C 417.07 -683.625 438.063 -665.332 441.656 -628.75 C 443.457 -604.164 432.063 -584.977 407.469 -571.188 C 394.883 -564.594 381.691 -561.297 367.891 -561.297 C 299.535 -561.297 250.066 -566.391 219.484 -576.578 C 144.523 -601.172 92.953 -651.547 64.766 -727.703 C 52.172 -763.078 45.875 -800.555 45.875 -840.141 C 45.875 -954.078 99.242 -1026.035 205.984 -1056.016 C 238.961 -1065.609 274.941 -1070.406 313.922 -1070.406 L 995.75 -1070.406 C 1061.719 -1070.406 1104.297 -1084.195 1123.484 -1111.781 C 1136.078 -1130.977 1142.375 -1159.766 1142.375 -1198.141 L 1180.156 -1198.141 C 1203.539 -1119.586 1203.238 -1067.863 1179.25 -1042.969 C 1155.258 -1018.082 1115.383 -1003.844 1059.625 -1000.25 L 719.609 -1000.25 L 719.609 -188 C 719.609 -132.821 723.504 -96.988 731.297 -80.5 C 739.086 -64.008 757.379 -52.77 786.172 -46.781 L 838.344 -36.875 L 838.344 0 L 489.328 0 L 489.328 -37.781 L 551.391 -51.266 C 573.578 -56.066 587.375 -62.961 592.781 -71.953 C 597.571 -82.148 599.969 -104.039 599.969 -137.625 L 599.969 -1000.25 L 303.141 -1000.25 C 233.578 -1000.25 190.098 -958.875 172.703 -876.125 C 167.91 -852.727 165.516 -827.539 165.516 -800.563 Z"/></g></g></g></g><g transform="translate(0,447)"><g fill="#325230"><g transform="translate(1114.484,1046.847)"><path d="M -408.188 -573.547 L -408.188 -1015.984 L -399.25 -1015.984 C -399.25 -991.16 -390.555 -970.055 -373.172 -952.672 C -355.797 -935.297 -334.691 -926.609 -309.859 -926.609 L 0 -926.609 C -10.926 -908.734 -19.863 -889.363 -26.813 -868.5 C -33.77 -847.645 -37.25 -823.316 -37.25 -795.516 C -37.25 -759.754 -34.266 -728.219 -28.297 -700.906 C -22.336 -673.602 -16.129 -646.539 -9.672 -619.719 C -3.223 -592.906 0 -562.613 0 -528.844 C 0 -464.289 -13.406 -403.707 -40.219 -347.094 C -67.031 -290.488 -104.52 -240.582 -152.688 -197.375 C -200.863 -154.176 -256.484 -120.41 -319.547 -96.078 C -382.609 -71.754 -449.895 -59.594 -521.406 -59.594 C -592.906 -59.594 -660.188 -71.754 -723.25 -96.078 C -786.321 -120.41 -841.941 -154.176 -890.109 -197.375 C -938.273 -240.582 -975.766 -290.488 -1002.578 -347.094 C -1029.391 -403.707 -1042.797 -464.289 -1042.797 -528.844 C -1042.797 -582.477 -1033.609 -633.129 -1015.234 -680.797 C -996.867 -728.473 -973.285 -770.93 -944.484 -808.172 C -915.68 -845.41 -884.395 -874.461 -850.625 -895.328 C -834.738 -905.254 -818.352 -912.945 -801.469 -918.406 C -784.582 -923.875 -768.195 -926.609 -752.313 -926.609 C -708.613 -926.609 -671.117 -910.961 -639.828 -879.672 C -608.547 -848.391 -592.906 -810.898 -592.906 -767.203 C -592.906 -723.504 -608.547 -686.016 -639.828 -654.734 C -671.117 -623.453 -708.613 -607.813 -752.313 -607.813 C -777.133 -607.813 -798.234 -612.281 -815.609 -621.219 C -832.992 -630.156 -848.391 -640.332 -861.797 -651.75 C -875.203 -663.176 -888.609 -673.359 -902.016 -682.297 C -915.43 -691.234 -931.078 -695.703 -948.953 -695.703 C -972.785 -695.703 -990.91 -685.27 -1003.328 -664.406 C -1015.742 -643.551 -1023.938 -619.961 -1027.906 -593.641 C -1031.875 -567.328 -1033.859 -545.727 -1033.859 -528.844 C -1033.859 -494.082 -1010.77 -462.051 -964.594 -432.75 C -918.414 -403.457 -856.594 -380.117 -779.125 -362.734 C -701.656 -345.359 -615.75 -336.672 -521.406 -336.672 C -427.051 -336.672 -341.141 -345.359 -263.672 -362.734 C -186.211 -380.117 -124.391 -403.457 -78.203 -432.75 C -32.023 -462.051 -8.938 -494.082 -8.938 -528.844 C -8.938 -545.727 -10.922 -567.828 -14.891 -595.141 C -18.867 -622.453 -27.313 -645.547 -40.219 -664.422 L -309.859 -664.422 C -334.691 -664.422 -355.797 -655.727 -373.172 -638.344 C -390.555 -620.969 -399.25 -599.367 -399.25 -573.547 Z"/></g></g></g></g></svg>`;
+  const liStr=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28"><rect width="28" height="28" rx="5" fill="#0A66C2"/><path d="M9 12h3.5v10H9zm1.75-5.5a2 2 0 110 4 2 2 0 010-4zm5.25 5.5h3.4v1.4h.05c.47-.9 1.62-1.8 3.34-1.8 3.57 0 4.21 2.35 4.21 5.4V22H23.5v-6.4c0-1.53-.03-3.5-2.13-3.5-2.14 0-2.47 1.67-2.47 3.4V22H15.5V12z" fill="#fff"/></svg>`;
+  const ssStr=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28"><rect width="28" height="28" rx="5" fill="#FF6719"/><rect x="4" y="6" width="20" height="2.5" fill="#fff"/><rect x="4" y="12" width="20" height="2.5" fill="#fff"/><polygon points="4,18 24,18 24,26 14,22 4,26" fill="#fff"/></svg>`;
+
+  const [logoSrc,liSrc,ssSrc]=await Promise.all([
+    rasterizeSvg(tMarkStr,76,76),
+    rasterizeSvg(liStr,56,56),
+    rasterizeSvg(ssStr,56,56)
+  ]);
+
   const wrap=document.createElement('div');
   wrap.style.cssText='position:fixed;left:-9999px;top:0;z-index:-1;pointer-events:none';
-  wrap.innerHTML=buildReportHTML(fl);
+  wrap.innerHTML=buildReportHTML(fl,logoSrc,liSrc,ssSrc);
   document.body.appendChild(wrap);
   const el=wrap.querySelector('#gt-report-page');
+
+  const cleanup=()=>{
+    if(document.body.contains(wrap))document.body.removeChild(wrap);
+    if(btn){btn.textContent='Gerar Relatório';btn.disabled=false}
+  };
+
   html2pdf().from(el).set({
     margin:0,filename:generateFilenameV2(),
     image:{type:'jpeg',quality:0.98},
     html2canvas:{scale:2,useCORS:true,logging:false,allowTaint:true},
     jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
     enableLinks:true
-  }).save().then(()=>{
-    document.body.removeChild(wrap);
-    if(btn){btn.textContent='Gerar Relatório';btn.disabled=false}
+  }).output('blob').then(blob=>{
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.target='_blank';
+    a.rel='noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),3000);
+    cleanup();
   }).catch(err=>{
     console.error('PDF error:',err);
-    document.body.removeChild(wrap);
-    if(btn){btn.textContent='Gerar Relatório';btn.disabled=false}
+    cleanup();
   });
 }
 
