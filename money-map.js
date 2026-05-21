@@ -209,6 +209,7 @@ mobileIcon.addEventListener('click',openMobilePanel);
 document.getElementById('filterPanelClose').addEventListener('click',closeMobilePanel);
 overlay.addEventListener('click',e=>{if(e.target===overlay)closeMobilePanel()});
 document.getElementById('filterFooterClear').addEventListener('click',()=>{if(lastFilters&&totalActive()===0){restoreFiltersSnapshot(lastFilters);lastFilters=null}else{clearAll()}applyRebuild();buildMobile()});
+document.getElementById('filterFooterApply').addEventListener('click',closeMobilePanel);
 mobileClear.addEventListener('click',()=>{clearAll();applyRebuild()});
 const ZT=9,CZT=6;
 const initCenter=window.innerWidth<=640?[-65,15]:[-40,15];
