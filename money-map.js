@@ -528,7 +528,7 @@ const _LEGAL=/\b(LLC|Inc\.|Corp\.|Ltd\.|S\.A\.|S\/A|Ltda\.|GmbH|PLC|LP|LLP|EIREL
 const _ABBR=[[/\bCapital\b/g,'Cap.'],[/\bInvestments\b/g,'Inv.'],[/\bInternational\b/g,'Intl.'],[/\bManagement\b/g,'Mgmt.'],[/\bDevelopment\b/g,'Dev.'],[/\bFoundation\b/g,'Fdn.'],[/\bFinancial\b/g,'Fin.'],[/\bFinance\b/g,'Fin.'],[/\bCompany\b/g,'Co.'],[/\bGroup\b/g,'Grp.']];
 const _SHORT={'ABC Impact (Temasek-backed)':'ABC Impact','Vox Capital / TNC / Moore Fdn':'Vox Cap.+','Co-Capital / Din4mo / Oogway':'Co-Cap+','500 LatAm / IDB Lab':'500 LatAm','Eco Invest Brasil (Gov/IDB/FCDO)':'Eco Invest','SITAWI Finanças do Bem':'SITAWI','FSDAi (FSD Africa Investments)':'FSDAi'};
 function shortenName(n){if(_SHORT[n])return _SHORT[n];let s=n.replace(_LEGAL,'').trim();_ABBR.forEach(([p,r])=>{s=s.replace(p,r)});return s.trim()}
-function truncateName(n,withPlus){const lim=withPlus?14:16,dot=withPlus?12:14,s=shortenName(n);return s.length<=lim?s:s.slice(0,dot)+'...'}
+function truncateName(n,withPlus){const lim=withPlus?20:22,dot=withPlus?18:20,s=shortenName(n);return s.length<=lim?s:s.slice(0,dot)+'...'}
 
 function computeReportStats(fl){
   const totalCapital=fl.reduce((s,d)=>s+(d.amount||0),0);
@@ -682,6 +682,59 @@ function drawGradBar(doc,x,y,w,h){
 
 function drawRule(doc,x,y,w,r=0xBB,g=0xCB,bd=0xBD){doc.setDrawColor(r,g,bd);doc.setLineWidth(0.5);doc.line(x,y,x+w,y)}
 
+// Wrapper for col1: renders text with hanging-indent bullets (• lines) and returns final Y.
+// Non-bullet paragraphs fall through to renderRich line-by-line.
+function renderCol1Bullets(doc,text,x,y,maxW,fontSize,lineH,maxY,colorR,colorG,colorB,indent){
+  indent=indent??20;
+  colorR=colorR??0;colorG=colorG??0;colorB=colorB??0;
+  const paragraphs=text.split('\n');
+  let curY=y;
+  const meas=(txt,bold)=>{doc.setFont('Roboto',bold?'medium':'light');return doc.getStringUnitWidth(txt)*fontSize};
+  for(const para of paragraphs){
+    if(curY>maxY)return;
+    if(para.startsWith('• ')){
+      const content=para.slice(2);
+      // Draw bullet at x, text starts at x+indent
+      doc.setFont('Roboto','light');doc.setFontSize(fontSize);
+      doc.setTextColor(colorR,colorG,colorB);
+      doc.text('•',x+2,curY);
+      // Word-wrap the bullet content at x+indent, width maxW-indent
+      // Reuse token-based approach inline
+      const tokens=[];let rem=content;
+      while(rem.length){
+        const bm=rem.match(/^\*\*(.+?)\*\*/);
+        if(bm){tokens.push({t:bm[1],b:true});rem=rem.slice(bm[0].length);continue}
+        const ni=rem.indexOf('**');let end=ni>=0?ni:rem.length;
+        tokens.push({t:rem.slice(0,end),b:false});rem=rem.slice(end);
+      }
+      let cx=x+indent,lineSegs=[];
+      const flush=()=>{lineSegs.forEach(s=>{doc.setFont('Roboto',s.b?'medium':'light');doc.setTextColor(colorR,colorG,colorB);doc.text(s.t,s.x,curY)});lineSegs=[]};
+      for(const tok of tokens){
+        const words=tok.t.split(' ');
+        for(let wi=0;wi<words.length;wi++){
+          const w=words[wi];if(w==='')continue;
+          const ws=w+(wi<words.length-1?' ':'');
+          const ww=meas(ws,tok.b);
+          if(cx+ww>x+maxW+2&&cx>x+indent){flush();curY+=lineH;cx=x+indent;if(curY>maxY)return}
+          lineSegs.push({t:ws,b:tok.b,x:cx});cx+=ww;
+        }
+      }
+      flush();curY+=lineH;
+    } else {
+      renderRich(doc,para,x,curY,maxW,fontSize,lineH,maxY,colorR,colorG,colorB,'Roboto','light','medium');
+      // Estimate lines used
+      if(para.trim()){
+        doc.setFont('Roboto','light');doc.setFontSize(fontSize);
+        const stripped=para.replace(/\*\*(.+?)\*\*/g,'$1');
+        const wlines=doc.splitTextToSize(stripped,maxW);
+        curY+=lineH*wlines.length;
+      } else {
+        curY+=lineH;
+      }
+    }
+  }
+}
+
 // Render text with inline **bold** markers, word-wrapping at maxWidth.
 // font sizes are in pt; lineH is vertical advance per line.
 // fontFamily/normalStyle/boldStyle let callers specify which font to use
@@ -767,14 +820,15 @@ async function generateReport(){
     // "GIVING TREE" wordmark text (SVG y≈230–514) side by side.
     // Aspect ratio 1500:770=1.948:1 almost exactly matches the 220.5×113 logo frame.
     const LOGO_SVG_CROPPED=LOGO_SVG
-      .replace('viewBox="0 0 1500 1499.999933"','viewBox="0 130 1500 770"')
+      .replace('viewBox="0 0 1500 1499.999933"','viewBox="0 143 1500 790"')
       .replace('width="2000"','width="1500"')
-      .replace('height="2000"','height="770"');
-    const LI_SVG=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="16" fill="#284c66"/><rect x="18" y="38" width="16" height="44" fill="#fff"/><circle cx="26" cy="24" r="10" fill="#fff"/><path d="M44 38h14v6c3-5 9-8 16-8 14 0 20 9 20 24v22H80V63c0-7-1-14-9-14s-11 7-11 14v21H44z" fill="#fff"/></svg>`;
+      .replace('height="2000"','height="790"')
+      .replace('preserveAspectRatio="xMidYMid meet"','preserveAspectRatio="xMidYMin meet"');
+    const LI_SVG=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 382 382"><path fill="#284C66" d="M347.445,0H34.555C15.471,0,0,15.471,0,34.555v312.889C0,366.529,15.471,382,34.555,382h312.889C366.529,382,382,366.529,382,347.444V34.555C382,15.471,366.529,0,347.445,0z M118.207,329.844c0,5.554-4.502,10.056-10.056,10.056H65.345c-5.554,0-10.056-4.502-10.056-10.056V150.403c0-5.554,4.502-10.056,10.056-10.056h42.806c5.554,0,10.056,4.502,10.056,10.056V329.844z M86.748,123.432c-22.459,0-40.666-18.207-40.666-40.666S64.289,42.1,86.748,42.1s40.666,18.207,40.666,40.666S109.208,123.432,86.748,123.432z M341.91,330.654c0,5.106-4.14,9.246-9.246,9.246H286.73c-5.106,0-9.246-4.14-9.246-9.246v-84.168c0-12.556,3.683-55.021-32.813-55.021c-28.309,0-34.051,29.066-35.204,42.11v97.079c0,5.106-4.139,9.246-9.246,9.246h-44.426c-5.106,0-9.246-4.14-9.246-9.246V149.593c0-5.106,4.14-9.246,9.246-9.246h44.426c5.106,0,9.246,4.14,9.246,9.246v15.655c10.497-15.753,26.097-27.912,59.312-27.912c73.552,0,73.131,68.716,73.131,106.472L341.91,330.654L341.91,330.654z"/></svg>`;
     const SS_SVG=`<svg xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" image-rendering="optimizeQuality" fill-rule="evenodd" clip-rule="evenodd" viewBox="0 0 448 511.471"><path fill="#FF681A" d="M0 0h448v62.804H0V0zm0 229.083h448v282.388L223.954 385.808 0 511.471V229.083zm0-114.542h448v62.804H0v-62.804z"/></svg>`;
     const[logoImg,liImg,ssImg]=await Promise.all([
       rasterizeSvgR(LOGO_SVG_CROPPED,441,226),
-      rasterizeSvgR(LI_SVG,150,149),
+      rasterizeSvgR(LI_SVG,150,150),
       rasterizeSvgR(SS_SVG,127,146)
     ]);
 
@@ -808,14 +862,14 @@ async function generateReport(){
     doc.text('Demo',1199,58,{align:'right'});
     doc.setCharSpace(0);
 
-    // ── 6. Generated date — Poppins Medium 24pt, ls=1.2 ─────
+    // ── 6. Generated date — Poppins Medium 14pt, ls=0.7 ─────
     const now=new Date();
     const MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
-    doc.setFont('Poppins','medium');doc.setFontSize(24);
-    doc.setCharSpace(1.2);doc.setTextColor(0x11,0x1B,0x1E);
-    doc.text('Generated',1199,80,{align:'right'});
+    doc.setFont('Poppins','medium');doc.setFontSize(14);
+    doc.setCharSpace(0.7);doc.setTextColor(0x11,0x1B,0x1E);
+    doc.text('Generated',1199,87,{align:'right'});
     doc.text(`${MON[now.getMonth()]} ${now.getDate()}`,1199,104,{align:'right'});
-    doc.text(`${now.getFullYear()}`,1199,128,{align:'right'});
+    doc.text(`${now.getFullYear()}`,1199,121,{align:'right'});
     doc.setCharSpace(0);
 
     // ── 7. Header rule y=155 ─────────────────────────────────
@@ -831,16 +885,16 @@ async function generateReport(){
       doc.setFillColor(0xFF,0xFA,0xEE);
       doc.roundedRect(cx,191,223.54,120.56,5,5,'FD');
     });
-    // Values — OpenSauceOne Medium 40pt ls=2
-    doc.setFont('OpenSauceOne','medium');doc.setFontSize(40);
-    doc.setCharSpace(2);doc.setTextColor(0x11,0x1B,0x1E);
-    doc.text(capStr,453.07,212+40*0.75,{align:'center'});  // ~y=242
-    doc.text(instStr,787.07,212+40*0.75,{align:'center'});
-    // Labels — OpenSauceOne SemiBold 16pt ls=0.8
-    doc.setFont('OpenSauceOne','semibold');doc.setFontSize(16);
-    doc.setCharSpace(0.8);
-    doc.text('in capital (USD)',453.07,191+84+13,{align:'center'});
-    doc.text('Institutions',787.07,191+84+13,{align:'center'});
+    // Values — OpenSauceOne Medium 38pt ls=1.9  baseline at card midpoint (191+60.28=251.28)
+    doc.setFont('OpenSauceOne','medium');doc.setFontSize(38);
+    doc.setCharSpace(1.9);doc.setTextColor(0x11,0x1B,0x1E);
+    doc.text(capStr,453.07,251,{align:'center'});
+    doc.text(instStr,787.07,251,{align:'center'});
+    // Labels — OpenSauceOne SemiBold 15pt ls=0.75  halfway between value baseline and card bottom
+    doc.setFont('OpenSauceOne','semibold');doc.setFontSize(15);
+    doc.setCharSpace(0.75);
+    doc.text('In Capital (USD)',453.07,278,{align:'center'});
+    doc.text('Institutions',787.07,278,{align:'center'});
     doc.setCharSpace(0);
 
     // ── 10-12. BOTTOM STAT CARDS ─────────────────────────────
@@ -856,61 +910,61 @@ async function generateReport(){
       const cx=c.x+146;
       doc.setFillColor(c.r,c.g,c.b);doc.setDrawColor(0x32,0x52,0x30);doc.setLineWidth(1);
       doc.roundedRect(c.x,350,292,90.15,5,5,'FD');
-      // Value — OpenSauceOne Medium 40pt ls=2
-      doc.setFont('OpenSauceOne','medium');doc.setFontSize(40);
-      doc.setCharSpace(2);doc.setTextColor(0xFF,0xFA,0xEE);
-      doc.text(c.val,cx,350+11+30,{align:'center'});   // ~y=391
-      // Label — OpenSauceOne SemiBold 16pt ls=0.8
-      doc.setFont('OpenSauceOne','semibold');doc.setFontSize(16);
-      doc.setCharSpace(0.8);
-      doc.text(c.lbl,cx,350+60+13,{align:'center'});   // ~y=423
+      // Value — OpenSauceOne Medium 38pt ls=1.9  baseline at card midpoint (350+45.075=395)
+      doc.setFont('OpenSauceOne','medium');doc.setFontSize(38);
+      doc.setCharSpace(1.9);doc.setTextColor(0xFF,0xFA,0xEE);
+      doc.text(c.val,cx,395,{align:'center'});
+      // Label — OpenSauceOne SemiBold 15pt ls=0.75  halfway between value baseline and card bottom
+      doc.setFont('OpenSauceOne','semibold');doc.setFontSize(15);
+      doc.setCharSpace(0.75);
+      doc.text(c.lbl,cx,422,{align:'center'});
       doc.setCharSpace(0);
     });
 
     // ── 13-18. THREE COLUMNS + VERTICAL SEPARATORS ───────────
     // Separators: x=78,460,842  y=465  h=92.5 (hairline)
     doc.setLineWidth(0.25);
-    doc.setDrawColor(0x6B,0x7D,0x89);doc.line(78,465,78,557.5);
-    doc.setDrawColor(0x4E,0x61,0x4D);doc.line(460,465,460,557.5);
-    doc.setDrawColor(0xB8,0x4E,0x1A);doc.line(842,465,842,557.5);
+    doc.setDrawColor(0x6B,0x7D,0x89);doc.line(78,482,78,574.5);
+    doc.setDrawColor(0x4E,0x61,0x4D);doc.line(460,482,460,574.5);
+    doc.setDrawColor(0xB8,0x4E,0x1A);doc.line(842,482,842,574.5);
 
     // Column text — Roboto Light 16pt ls=0.8 black; bold segments use Roboto Medium
-    const COL_LH=24,COL_MAXY=840;
+    const COL_LH=24,COL_MAXY=860;
     doc.setCharSpace(0.8);
-    renderRich(doc,buildCol1(stats),99,462,283,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium');
-    renderRich(doc,buildCol2(stats),483,462,283,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium');
-    renderRich(doc,buildCol3(stats),861,462,283,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium');
+    renderCol1Bullets(doc,buildCol1(stats),99,482,283,16,COL_LH,COL_MAXY,0,0,0,20);
+    renderRich(doc,buildCol2(stats),483,482,283,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium');
+    renderRich(doc,buildCol3(stats),861,482,283,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium');
     doc.setCharSpace(0);
 
-    // ── 19. HIGHLIGHTS HEADER  y=872 ls=1.1 ─────────────────
+    // ── 19. HIGHLIGHTS HEADER  y=898 ─────────────────────────
     doc.setFont('Roboto','semibold');doc.setFontSize(22);
     doc.setCharSpace(1.1);doc.setTextColor(0x20,0x49,0x37);
-    doc.text('HIGHLIGHTS',56,872);
+    doc.text('HIGHLIGHTS',56,898);
     doc.setCharSpace(0);
 
-    // ── 20. Table header separator  y=907 (dark) ─────────────
-    drawRule(doc,56,907,1124,0x20,0x49,0x37);
+    // ── 20. Table header separator  y=935 ────────────────────
+    drawRule(doc,56,935,1124,0x20,0x49,0x37);
 
-    // ── 21-26. Column headers  y=921 Roboto SemiBold 18pt ls=0.9 off-black ──
+    // ── 21-26. Column headers  y=947 Roboto SemiBold 18pt ls=0.9 off-black ──
     const HCOLS=[
       {t:'CAPITAL FLOW',x:56},{t:'VALUE',x:449},{t:'METRO AREA',x:575},
       {t:'THEME',x:809},{t:'ACTIVITY',x:1027}
     ];
     doc.setFont('Roboto','semibold');doc.setFontSize(18);
     doc.setCharSpace(0.9);doc.setTextColor(0x11,0x1B,0x1E);
-    HCOLS.forEach(h=>doc.text(h.t,h.x,921));
-    // "(USD)" subscript — OpenSauceOne SemiBold 12pt #7A8380 ls=0.6  x=463 y=942
+    HCOLS.forEach(h=>doc.text(h.t,h.x,947));
+    // "(USD)" subscript — OpenSauceOne SemiBold 12pt #7A8380 ls=0.6  x=463 y=968
     doc.setFont('OpenSauceOne','semibold');doc.setFontSize(12);
     doc.setCharSpace(0.6);doc.setTextColor(0x7A,0x83,0x80);
-    doc.text('(USD)',463,942);
+    doc.text('(USD)',463,968);
     doc.setCharSpace(0);
 
-    // ── 27. Row separator below headers  y=958 ───────────────
-    drawRule(doc,56,958,1124,0x20,0x49,0x37);
+    // ── 27. Row separator below headers  y=985 ───────────────
+    drawRule(doc,56,985,1124,0x20,0x49,0x37);
 
     // ── 28-32. Data rows ─────────────────────────────────────
-    const ROW_YS=[974,1027,1080,1133,1186];
-    const ROW_LINES=[1011,1064,1117,1170];
+    const ROW_YS=[1000,1053,1106,1159,1212];
+    const ROW_LINES=[1037,1090,1143,1196];
     stats.highlightRows.forEach((deal,idx)=>{
       if(idx>=5)return;
       const ry=ROW_YS[idx]+14;
@@ -920,7 +974,7 @@ async function generateReport(){
       const plus=multiInv||multiRec;
       const inv=truncateName(deal.investor,plus);
       const rec=truncateName(deal.recipient,plus);
-      const arrow='→';
+      const arrow='➟';
       doc.setFont('Roboto','semibold');doc.setFontSize(16);
       doc.setCharSpace(0.8);doc.setTextColor(0x11,0x1B,0x1E);
       doc.text(`${inv}${plus?'+':''} ${arrow} ${rec}${plus?'+':''}`,56,ry);
@@ -929,7 +983,7 @@ async function generateReport(){
       doc.text(fmtRowValue(deal.amount),449,ry);
       // METRO AREA — Roboto Regular 16pt off-black ls=0.8  x=575
       const iso=ISO3[deal.country]||deal.country.slice(0,3).toUpperCase();
-      let city=deal.city;if(city.length>16)city=city.slice(0,14)+'...';
+      let city=deal.city;if(city.length>20)city=city.slice(0,18)+'...';
       doc.setTextColor(0x11,0x1B,0x1E);
       doc.text(`${city}, ${iso}`,575,ry);
       // THEME — off-black
@@ -941,38 +995,36 @@ async function generateReport(){
       if(idx<4)drawRule(doc,56,ROW_LINES[idx],1124,0xCC,0xD8,0xD0);
     });
 
-    // ── 33. LOWER GRADIENT BAR  y=1259 ───────────────────────
-    drawGradBar(doc,0,1259,1240,8.76);
+    // ── 33. LOWER GRADIENT BAR  y=1285 ───────────────────────
+    drawGradBar(doc,0,1285,1240,8.76);
 
-    // ── 34-35. TAGLINE — Playfair Regular 24pt ls=1.2, fillThenStroke 0.2pt outline ──
+    // ── 34-35. TAGLINE — Playfair Regular 24pt ls=1.2 ────────
     doc.setFont('Playfair','normal');doc.setFontSize(24);
     doc.setCharSpace(1.2);doc.setTextColor(0x20,0x49,0x37);
-    doc.setDrawColor(0x20,0x49,0x37);doc.setLineWidth(0.2);
-    doc.text('Impact capital flows are out there.',620,1282,{align:'center',renderingMode:'fillThenStroke'});
-    doc.text('Fragmented, dispersed, hard to see — until now.',620,1313,{align:'center',renderingMode:'fillThenStroke'});
+    doc.text('Impact capital flows are out there.',620,1313,{align:'center'});
+    doc.text('Fragmented, dispersed, hard to see — until now.',620,1344,{align:'center'});
     doc.setCharSpace(0);
 
-    // ── 36. Thin rule  y=1358 ────────────────────────────────
-    drawRule(doc,0,1358,1240,0xBB,0xCB,0xBD);
+    // ── 36. Thin rule  y=1390 ────────────────────────────────
+    drawRule(doc,0,1390,1240,0xBB,0xCB,0xBD);
 
     // ── 37. CTA headline — Roboto SemiBold 24pt #325230 ls=1.2 ─
     doc.setFont('Roboto','semibold');doc.setFontSize(24);
     doc.setCharSpace(1.2);doc.setTextColor(0x32,0x52,0x30);
-    doc.text('Be the first to know when Beta membership opens.',620,1378+20,{align:'center'});
+    doc.text('Be the first to know when Beta membership opens.',620,1420,{align:'center'});
     doc.setCharSpace(0);
 
     // ── 38. CTA subtext — Roboto Regular 20pt #111B1E ls=1 ───
     doc.setFont('Roboto','normal');doc.setFontSize(20);
     doc.setCharSpace(1);doc.setTextColor(0x11,0x1B,0x1E);
-    doc.text('Early members lock in founding pricing for 12 months and get priority access to premium tools.',620,1409+17,{align:'center'});
+    doc.text('Early members lock in founding pricing for 12 months and get priority access to premium tools.',620,1452,{align:'center'});
     doc.setCharSpace(0);
 
-    // ── 39-40. SOCIAL ICONS ───────────────────────────────────
-    if(liImg){doc.addImage(liImg,'PNG',503,1469,74.83,73.95);doc.link(503,1469,74.83,73.95,{url:'https://www.linkedin.com/company/gvngtree'})}
-    if(ssImg){doc.addImage(ssImg,'PNG',645.6,1469.9,63.38,73.07);doc.link(645.6,1469.9,63.38,73.07,{url:'https://givingtree.substack.com/'})}
+    // ── 39-40. SOCIAL ICONS  y=1492 ──────────────────────────
+    if(liImg){doc.addImage(liImg,'PNG',503,1492,74.83,73.95);doc.link(503,1492,74.83,73.95,{url:'https://www.linkedin.com/company/gvngtree'})}
+    if(ssImg){doc.addImage(ssImg,'PNG',645.6,1492.9,63.38,73.07);doc.link(645.6,1492.9,63.38,73.07,{url:'https://givingtree.substack.com/'})}
 
-    // ── 41. FOOTER LINKS — Roboto Regular 20pt ls=1 ──────────
-    // y=1577  plain=#111B1E  links=#325230
+    // ── 41. FOOTER LINKS — Roboto Regular 20pt ls=1  y=1600 ──
     doc.setFont('Roboto','normal');doc.setFontSize(20);doc.setCharSpace(1);
     const fp=[
       {t:'Follow us on ',lnk:null},
@@ -987,8 +1039,8 @@ async function generateReport(){
     let totalFW=0;const fws=fp.map(p=>{const w=doc.getStringUnitWidth(p.t)*20;totalFW+=w;return w});
     let fx=620-totalFW/2;
     fp.forEach((p,i)=>{
-      if(p.lnk){doc.setTextColor(0x32,0x52,0x30);doc.textWithLink(p.t,fx,1577,{url:p.lnk})}
-      else{doc.setTextColor(0x11,0x1B,0x1E);doc.text(p.t,fx,1577)}
+      if(p.lnk){doc.setTextColor(0x32,0x52,0x30);doc.textWithLink(p.t,fx,1600,{url:p.lnk})}
+      else{doc.setTextColor(0x11,0x1B,0x1E);doc.text(p.t,fx,1600)}
       fx+=fws[i];
     });
     doc.setCharSpace(0);
