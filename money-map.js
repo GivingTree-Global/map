@@ -496,262 +496,511 @@ const popup=new mapboxgl.Popup({offset:15,maxWidth:mb?'270px':'320px',anchor:anc
 if(mb){setTimeout(()=>{const el=popup.getElement();if(!el)return;const r=el.getBoundingClientRect();const cr=map.getContainer().getBoundingClientRect();let px=0,py=0;if(r.left<cr.left+8)px=r.left-cr.left-8;if(r.right>cr.right-8)px=r.right-cr.right+8;if(r.top<cr.top+8)py=r.top-cr.top-8;if(r.bottom>cr.bottom-8)py=r.bottom-cr.bottom+8;if(px!==0||py!==0)map.panBy([px,py],{duration:300})},50)}}
 function updateStats(dl){const tc=dl.reduce((s,d)=>s+(d.amount||0),0);document.getElementById('stats').innerHTML=`<div class="stat-card"><div class="stat-value">${dl.length}</div><div class="stat-label">Deals tracked</div></div><div class="stat-card"><div class="stat-value" style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">${fmt(tc)}<span style="font-family:'DM Sans',sans-serif;font-size:10px;color:var(--gt-muted);font-weight:600;letter-spacing:.04em">USD</span></div><div class="stat-label">Capital identified</div></div>`}
 
-// ── REPORT GENERATION v2 ──────────────────────────────────────────────────────
+// ── CREATE REPORT ─────────────────────────────────────────────────────────────
 
-const SECTOR_PT_LABEL={
-  'climate':'Clima','economic-inclusion':'Inclusão Econômica','conservation':'Conservação',
-  'health':'Saúde','energy':'Energia','agritech':'Agritech','infrastructure':'Infraestrutura',
-  'fintech':'Fintech','housing':'Habitação','circular-economy':'Economia Circular','other':'Outro'
+const ISO3={
+  'Brazil':'BRA','United States':'USA','United Kingdom':'GBR','Singapore':'SGP',
+  'Ghana':'GHA','Australia':'AUS','Japan':'JPN','France':'FRA','Netherlands':'NLD',
+  'Denmark':'DNK','Germany':'DEU','Switzerland':'CHE','Sweden':'SWE','Norway':'NOR',
+  'Kenya':'KEN','South Africa':'ZAF','Nigeria':'NGA','Rwanda':'RWA','Tanzania':'TZA',
+  'Egypt':'EGY','Mexico':'MEX','Colombia':'COL','Chile':'CHL','Peru':'PER',
+  'Argentina':'ARG','Puerto Rico':'PRI','India':'IND','China':'CHN','Indonesia':'IDN',
+  'Thailand':'THA','South Korea':'KOR','Cambodia':'KHM','New Zealand':'NZL'
 };
-const SECTOR_TAG={
-  'climate':{text:'#2D6A4F',bg:'#D9F3DD'},
-  'economic-inclusion':{text:'#1B4965',bg:'#D6EAF9'},
-  'conservation':{text:'#6B4226',bg:'#FDEBD0'},
-  'health':{text:'#7B2D4E',bg:'#FADBD8'},
-  'energy':{text:'#7A5C00',bg:'#FEF3CD'},
-  'agritech':{text:'#3D6B35',bg:'#E2F4DC'},
-  'infrastructure':{text:'#4A4A8A',bg:'#E8E8F8'},
-  'fintech':{text:'#1A5C6B',bg:'#D4EFF5'},
-  'housing':{text:'#6B3D6B',bg:'#F5E2F5'},
-  'circular-economy':{text:'#5A6B00',bg:'#F2F5D4'},
-  _default:{text:'#5A6B62',bg:'#E8E6E4'}
-};
-const DEAL_TYPE_PT={
-  'Investment':'Investimento','Fund Launch':'Lanç. de Fundo','Loan':'Empréstimo',
-  'Partnership':'Parceria','Grant':'Doação'
-};
-const DEAL_TYPE_SNIPPET={
-  'Investment':'invest. direto','Fund Launch':'lanç. de fundo','Loan':'empréstimo',
-  'Partnership':'parceria','Grant':'doação'
-};
-const MONTHS_PT=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 
-function fmtPT(a){
+function fmtStatCard(a){
   if(!a)return'—';
-  if(a>=1e9)return'$'+(a/1e9).toFixed(1).replace('.0','')+' bi';
-  if(a>=1e6)return'$'+Math.round(a/1e6)+' mi';
-  if(a>=1e3)return'$'+Math.round(a/1e3)+' mil';
-  return'$'+a;
-}
-function deriveInstrument(d){
-  if(d.dealType==='Loan')return'dívida';
-  if(d.dealType==='Grant')return'doação';
-  if(d.dealType==='Partnership')return'parceria';
-  if(d.dealType==='Fund Launch')return'fundo';
-  if(d.sourceType==='DFI'||d.sourceType==='Foundation')return'blended finance';
-  if(d.sourceType==='Government')return'subvenção';
-  return'equity';
-}
-function slugifyPT(str){
-  return str.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,'-').replace(/[^a-zA-Z0-9-]/g,'');
-}
-function generateFilenameV2(){
-  const noFilters=totalActive()===0&&!isolatedCountry&&!isolatedCity;
-  if(noFilters)return'GivingTree-Panorama-DEMO.pdf';
-  const today=new Date();
-  const dateStr=today.toISOString().slice(0,10);
-  const parts=[];
-  if(isolatedCountry)parts.push(slugifyPT(isolatedCountry));
-  else if(filters.geo.size===1)parts.push(slugifyPT([...filters.geo][0]));
-  else parts.push('Global');
-  [...filters.sector].slice(0,2).forEach(s=>parts.push(slugifyPT(SECTOR_PT_LABEL[s]||s)));
-  return'GivingTree-Panorama-'+dateStr+'-'+parts.slice(0,3).join('-')+'.pdf';
+  const v=a>=1e12?a/1e12:a>=1e9?a/1e9:a>=1e6?a/1e6:a>=1e3?a/1e3:a;
+  const sfx=a>=1e12?' T':a>=1e9?' B':a>=1e6?' M':a>=1e3?' K':'';
+  const d=v<10?v.toFixed(1):String(Math.round(v));
+  return'$'+d.replace('.0','')+sfx;
 }
 
-function boldJoin(names){
-  if(names.length===0)return'';
-  if(names.length===1)return`<strong>${names[0]}</strong>`;
-  if(names.length===2)return`<strong>${names[0]}</strong> e <strong>${names[1]}</strong>`;
-  return names.slice(0,-1).map(n=>`<strong>${n}</strong>`).join(', ')+' e <strong>'+names[names.length-1]+'</strong>';
-}
-function snippetModalidades(uniqueTypes,uniqueInstruments){
-  const count=uniqueTypes.size+uniqueInstruments.size;
-  const x=uniqueTypes.size,y=uniqueInstruments.size;
-  const tList=[...uniqueTypes].map(t=>DEAL_TYPE_SNIPPET[t]||t.toLowerCase()).join(', ');
-  const iList=[...uniqueInstruments].join(', ');
-  const open=`—entre ${x} tipo${x!==1?'s':''} (${tList}) e ${y} instrumento${y!==1?'s':''} (${iList}), `;
-  if(count<=4)return open+'as estruturas mais recorrentes no ecossistema de impacto. Representam os mecanismos predominantes nos mercados onde o capital de impacto opera atualmente.';
-  if(count<=7)return open+'refletindo a diversidade de estruturas que o mercado de impacto utiliza para atender diferentes perfis de risco, retorno e impacto.';
-  return open+'demonstrando a amplitude de mecanismos financeiros disponíveis para direcionar capital a resultados sociais e ambientais em diferentes contextos.';
-}
-function snippetAreas(uniqueSectors){
-  const count=uniqueSectors.size;
-  const names=[...uniqueSectors].map(s=>SECTOR_PT_LABEL[s]||s);
-  if(count===1)return`—concentrado em <strong>${names[0]}</strong>. O foco numa única área de impacto permite observar com mais profundidade como o capital está sendo direcionado para enfrentar desafios específicos dentro desse tema.`;
-  if(count<=3)return`—abrangendo ${boldJoin(names)}. As áreas identificadas representam os temas onde o capital mapeado está mais ativo, refletindo as prioridades dos investidores e gestores neste recorte geográfico e temático.`;
-  return`—distribuído entre ${boldJoin(names)}. A variedade de áreas de impacto reflete a abrangência do capital mapeado, que atinge múltiplos temas sociais e ambientais simultaneamente.`;
-}
-function snippetCidades(fl,uniqueCountries,topCity,uniqueCities){
-  const cc=uniqueCountries.size,cities=uniqueCities.size;
-  const topDeal=fl.find(d=>d.city===topCity);
-  const country=topDeal?topDeal.country:'';
-  if(cc===1)return`—em ${topCity}, ${country}. A atividade concentrada num único mercado permite observar como o capital de impacto se organiza e se distribui localmente antes de se expandir para novas praças.`;
-  if(cc<=3)return`—em ${cc} países, com atividade concentrada em ${topCity}. A presença em mais de um mercado sinaliza os caminhos por onde o capital de impacto começa a se conectar entre regiões.`;
-  return`—em ${cc} países e ${cities} cidades. A dispersão geográfica reflete um ecossistema que opera em escala internacional, com fluxos de capital conectando mercados em diferentes estágios de desenvolvimento.`;
+function fmtRowValue(a){
+  if(!a)return'—';
+  const v=a>=1e9?a/1e9:a>=1e6?a/1e6:a>=1e3?a/1e3:a;
+  const sfx=a>=1e9?' B':a>=1e6?' M':a>=1e3?' K':'';
+  const d=v<10?v.toFixed(1):String(Math.round(v));
+  return'$'+d.replace('.0','')+sfx;
 }
 
-// Bug 2: dynamic font scaling for large capital values
-function getStatFontSize(val,base){const l=val.length;if(l<=6)return base;if(l<=9)return+(base*0.9).toFixed(1);return+(base*0.8).toFixed(1);}
-// Bug 4: rasterize SVG to PNG data-URL so html2canvas renders it reliably
-function rasterizeSvg(svgStr,w,h){return new Promise(res=>{const blob=new Blob([svgStr],{type:'image/svg+xml'});const burl=URL.createObjectURL(blob);const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=w*2;c.height=h*2;const ctx=c.getContext('2d');ctx.scale(2,2);ctx.drawImage(img,0,0,w,h);URL.revokeObjectURL(burl);res(c.toDataURL('image/png'));};img.onerror=()=>{URL.revokeObjectURL(burl);res('');};img.src=burl;});}
+const _LEGAL=/\b(LLC|Inc\.|Corp\.|Ltd\.|S\.A\.|S\/A|Ltda\.|GmbH|PLC|LP|LLP|EIRELI)\b\.?/gi;
+const _ABBR=[[/\bCapital\b/g,'Cap.'],[/\bInvestments\b/g,'Inv.'],[/\bInternational\b/g,'Intl.'],[/\bManagement\b/g,'Mgmt.'],[/\bDevelopment\b/g,'Dev.'],[/\bFoundation\b/g,'Fdn.'],[/\bFinancial\b/g,'Fin.'],[/\bFinance\b/g,'Fin.'],[/\bCompany\b/g,'Co.'],[/\bGroup\b/g,'Grp.']];
+const _SHORT={'ABC Impact (Temasek-backed)':'ABC Impact','Vox Capital / TNC / Moore Fdn':'Vox Cap.+','Co-Capital / Din4mo / Oogway':'Co-Cap+','500 LatAm / IDB Lab':'500 LatAm','Eco Invest Brasil (Gov/IDB/FCDO)':'Eco Invest','SITAWI Finanças do Bem':'SITAWI','FSDAi (FSD Africa Investments)':'FSDAi'};
+function shortenName(n){if(_SHORT[n])return _SHORT[n];let s=n.replace(_LEGAL,'').trim();_ABBR.forEach(([p,r])=>{s=s.replace(p,r)});return s.trim()}
+function truncateName(n,withPlus){const lim=withPlus?14:16,dot=withPlus?12:14,s=shortenName(n);return s.length<=lim?s:s.slice(0,dot)+'...'}
 
-function buildReportHTML(fl,logoSrc,liSrc,ssSrc){
-  const today=new Date();
-  const dateStr=today.getDate()+' de '+MONTHS_PT[today.getMonth()];
+function computeReportStats(fl){
   const totalCapital=fl.reduce((s,d)=>s+(d.amount||0),0);
-  const capStr=fmtPT(totalCapital);
-  const uniqueCities=new Set(fl.map(d=>d.city));
-  const uniqueSectors=new Set(fl.map(d=>d.sector));
-  const uniqueTypes=new Set(fl.map(d=>d.dealType));
-  const uniqueInstruments=new Set(fl.map(d=>deriveInstrument(d)));
-  const uniqueCountries=new Set(fl.map(d=>d.country));
-  const modalCount=uniqueTypes.size+uniqueInstruments.size;
-  const cityCount={};fl.forEach(d=>{cityCount[d.city]=(cityCount[d.city]||0)+1});
-  const topCity=Object.entries(cityCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
-  const s1=snippetModalidades(uniqueTypes,uniqueInstruments);
-  const s2=snippetAreas(uniqueSectors);
-  const s3=snippetCidades(fl,uniqueCountries,topCity,uniqueCities);
-  const sorted=[...fl].sort((a,b)=>(b.amount||0)-(a.amount||0));
-  const display=sorted.length<=7?sorted:sorted.slice(0,5);
-  const tableNote=sorted.length<=7?sorted.length+' operaç'+(sorted.length===1?'ão':'ões'):display.length+' de '+sorted.length+' operações · por volume';
+  const investorSet=new Set(fl.map(d=>d.investor));
+  const recipientSet=new Set(fl.map(d=>d.recipient));
+  const allInst=new Set([...investorSet,...recipientSet]);
 
-  // Bug 4: use pre-rasterized PNG if available, fall back to inline SVG
-  const tMarkSvgInline=`<svg viewBox="0 0 1500 1500" xmlns="http://www.w3.org/2000/svg" style="height:38px;width:auto"><g transform="translate(110,0)"><g><g transform="translate(11,0)"><g fill="#325230"><g transform="translate(0.939,1253.113)"><path d="M 165.516 -800.563 C 165.516 -678.227 192.797 -616.758 247.359 -616.156 C 256.953 -616.156 271.946 -625.148 292.344 -643.141 C 326.52 -668.328 355.301 -681.82 378.688 -683.625 C 417.07 -683.625 438.063 -665.332 441.656 -628.75 C 443.457 -604.164 432.063 -584.977 407.469 -571.188 C 394.883 -564.594 381.691 -561.297 367.891 -561.297 C 299.535 -561.297 250.066 -566.391 219.484 -576.578 C 144.523 -601.172 92.953 -651.547 64.766 -727.703 C 52.172 -763.078 45.875 -800.555 45.875 -840.141 C 45.875 -954.078 99.242 -1026.035 205.984 -1056.016 C 238.961 -1065.609 274.941 -1070.406 313.922 -1070.406 L 995.75 -1070.406 C 1061.719 -1070.406 1104.297 -1084.195 1123.484 -1111.781 C 1136.078 -1130.977 1142.375 -1159.766 1142.375 -1198.141 L 1180.156 -1198.141 C 1203.539 -1119.586 1203.238 -1067.863 1179.25 -1042.969 C 1155.258 -1018.082 1115.383 -1003.844 1059.625 -1000.25 L 719.609 -1000.25 L 719.609 -188 C 719.609 -132.821 723.504 -96.988 731.297 -80.5 C 739.086 -64.008 757.379 -52.77 786.172 -46.781 L 838.344 -36.875 L 838.344 0 L 489.328 0 L 489.328 -37.781 L 551.391 -51.266 C 573.578 -56.066 587.375 -62.961 592.781 -71.953 C 597.571 -82.148 599.969 -104.039 599.969 -137.625 L 599.969 -1000.25 L 303.141 -1000.25 C 233.578 -1000.25 190.098 -958.875 172.703 -876.125 C 167.91 -852.727 165.516 -827.539 165.516 -800.563 Z"/></g></g></g></g><g transform="translate(0,447)"><g fill="#325230"><g transform="translate(1114.484,1046.847)"><path d="M -408.188 -573.547 L -408.188 -1015.984 L -399.25 -1015.984 C -399.25 -991.16 -390.555 -970.055 -373.172 -952.672 C -355.797 -935.297 -334.691 -926.609 -309.859 -926.609 L 0 -926.609 C -10.926 -908.734 -19.863 -889.363 -26.813 -868.5 C -33.77 -847.645 -37.25 -823.316 -37.25 -795.516 C -37.25 -759.754 -34.266 -728.219 -28.297 -700.906 C -22.336 -673.602 -16.129 -646.539 -9.672 -619.719 C -3.223 -592.906 0 -562.613 0 -528.844 C 0 -464.289 -13.406 -403.707 -40.219 -347.094 C -67.031 -290.488 -104.52 -240.582 -152.688 -197.375 C -200.863 -154.176 -256.484 -120.41 -319.547 -96.078 C -382.609 -71.754 -449.895 -59.594 -521.406 -59.594 C -592.906 -59.594 -660.188 -71.754 -723.25 -96.078 C -786.321 -120.41 -841.941 -154.176 -890.109 -197.375 C -938.273 -240.582 -975.766 -290.488 -1002.578 -347.094 C -1029.391 -403.707 -1042.797 -464.289 -1042.797 -528.844 C -1042.797 -582.477 -1033.609 -633.129 -1015.234 -680.797 C -996.867 -728.473 -973.285 -770.93 -944.484 -808.172 C -915.68 -845.41 -884.395 -874.461 -850.625 -895.328 C -834.738 -905.254 -818.352 -912.945 -801.469 -918.406 C -784.582 -923.875 -768.195 -926.609 -752.313 -926.609 C -708.613 -926.609 -671.117 -910.961 -639.828 -879.672 C -608.547 -848.391 -592.906 -810.898 -592.906 -767.203 C -592.906 -723.504 -608.547 -686.016 -639.828 -654.734 C -671.117 -623.453 -708.613 -607.813 -752.313 -607.813 C -777.133 -607.813 -798.234 -612.281 -815.609 -621.219 C -832.992 -630.156 -848.391 -640.332 -861.797 -651.75 C -875.203 -663.176 -888.609 -673.359 -902.016 -682.297 C -915.43 -691.234 -931.078 -695.703 -948.953 -695.703 C -972.785 -695.703 -990.91 -685.27 -1003.328 -664.406 C -1015.742 -643.551 -1023.938 -619.961 -1027.906 -593.641 C -1031.875 -567.328 -1033.859 -545.727 -1033.859 -528.844 C -1033.859 -494.082 -1010.77 -462.051 -964.594 -432.75 C -918.414 -403.457 -856.594 -380.117 -779.125 -362.734 C -701.656 -345.359 -615.75 -336.672 -521.406 -336.672 C -427.051 -336.672 -341.141 -345.359 -263.672 -362.734 C -186.211 -380.117 -124.391 -403.457 -78.203 -432.75 C -32.023 -462.051 -8.938 -494.082 -8.938 -528.844 C -8.938 -545.727 -10.922 -567.828 -14.891 -595.141 C -18.867 -622.453 -27.313 -645.547 -40.219 -664.422 L -309.859 -664.422 C -334.691 -664.422 -355.797 -655.727 -373.172 -638.344 C -390.555 -620.969 -399.25 -599.367 -399.25 -573.547 Z"/></g></g></g></g></svg>`;
-  const liSvgInline=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" style="width:28px;height:28px;display:inline-block"><rect width="28" height="28" rx="5" fill="#0A66C2"/><path d="M9 12h3.5v10H9zm1.75-5.5a2 2 0 110 4 2 2 0 010-4zm5.25 5.5h3.4v1.4h.05c.47-.9 1.62-1.8 3.34-1.8 3.57 0 4.21 2.35 4.21 5.4V22H23.5v-6.4c0-1.53-.03-3.5-2.13-3.5-2.14 0-2.47 1.67-2.47 3.4V22H15.5V12z" fill="#fff"/></svg>`;
-  const ssSvgInline=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" style="width:28px;height:28px;display:inline-block"><rect width="28" height="28" rx="5" fill="#FF6719"/><rect x="4" y="6" width="20" height="2.5" fill="#fff"/><rect x="4" y="12" width="20" height="2.5" fill="#fff"/><polygon points="4,18 24,18 24,26 14,22 4,26" fill="#fff"/></svg>`;
-  const logoEl=logoSrc?`<img src="${logoSrc}" style="height:38px;width:auto;display:block" alt="">`:tMarkSvgInline;
-  const liEl=liSrc?`<img src="${liSrc}" style="width:28px;height:28px;display:inline-block" alt="">`:liSvgInline;
-  const ssEl=ssSrc?`<img src="${ssSrc}" style="width:28px;height:28px;display:inline-block" alt="">`:ssSvgInline;
+  const investorCats={
+    'impact investment firms':0,'family offices':0,'pension funds':0,'foundations':0,
+    'corporate investors':0,'banks':0,'government agencies':0,
+    'development finance institutions':0,'sovereign wealth funds':0,'angel investors':0
+  };
+  fl.forEach(d=>{switch(d.sourceType){
+    case'VC/PE':investorCats['impact investment firms']++;break;
+    case'DFI':investorCats['development finance institutions']++;break;
+    case'Family Office':investorCats['family offices']++;break;
+    case'Foundation':investorCats['foundations']++;break;
+    case'Government':investorCats['government agencies']++;break;
+    case'Corporate':investorCats['corporate investors']++;break;
+  }});
 
-  // Bug 2: dynamic font size for capital value
-  const capFontSize=getStatFontSize(capStr,23);
+  const dealSubtypes={'venture capital investments':0,'private equity investments':0,'loans':0,'grants':0,'blended finance deployments':0};
+  fl.forEach(d=>{
+    if(d.dealType==='Investment'){if(d.sourceType==='VC/PE')dealSubtypes['venture capital investments']++;else dealSubtypes['private equity investments']++;}
+    else if(d.dealType==='Loan')dealSubtypes['loans']++;
+    else if(d.dealType==='Grant')dealSubtypes['grants']++;
+    else if(d.dealType==='Partnership')dealSubtypes['blended finance deployments']++;
+  });
 
-  // Bug 3: table rows — single line, truncate with ellipsis
-  const tableRows=display.map(d=>{
-    const tag=SECTOR_TAG[d.sector]||SECTOR_TAG._default;
-    const sLabel=SECTOR_PT_LABEL[d.sector]||d.sector;
-    const tLabel=DEAL_TYPE_PT[d.dealType]||d.dealType;
-    const raw=d.dealType==='Fund Launch'?d.recipient:d.investor+' → '+d.recipient;
-    const name=raw.length>42?raw.slice(0,40)+'…':raw;
-    return`<tr>
-<td style="padding:7px 10px 7px 0;font-family:Poppins,sans-serif;font-size:10pt;font-weight:700;color:#111B1E;border-bottom:1px solid #E8E4DE;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</td>
-<td style="padding:7px 8px;font-family:Poppins,sans-serif;font-size:10pt;font-weight:700;color:#111B1E;border-bottom:1px solid #E8E4DE;white-space:nowrap">${fmtPT(d.amount)}</td>
-<td style="padding:7px 8px;font-family:Poppins,sans-serif;font-size:10pt;color:#5A6B62;border-bottom:1px solid #E8E4DE;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.city}</td>
-<td style="padding:7px 8px;border-bottom:1px solid #E8E4DE;overflow:hidden"><span style="display:inline-block;padding:2px 10px;border-radius:12px;font-family:Poppins,sans-serif;font-size:9pt;color:${tag.text};background:${tag.bg};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:148px">${sLabel}</span></td>
-<td style="padding:7px 0 7px 8px;border-bottom:1px solid #E8E4DE;overflow:hidden"><span style="display:inline-block;padding:2px 10px;border-radius:12px;font-family:Poppins,sans-serif;font-size:9pt;color:#5A6B62;background:#E8E6E4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:108px">${tLabel}</span></td>
-</tr>`;
-  }).join('');
+  const investments=fl.filter(d=>d.dealType==='Investment');
+  const fundraises=fl.filter(d=>d.dealType==='Fund Launch');
 
-  return`<div id="gt-report-page" style="width:794px;height:1122px;background:#FFFAEE;font-family:Poppins,sans-serif;color:#111B1E;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden">
-<div style="height:5px;background:linear-gradient(to right,#325230,#6B7D89);flex-shrink:0"></div>
-<div style="display:flex;justify-content:space-between;align-items:center;padding:13px 28px 10px;flex-shrink:0">
-  <div style="display:flex;align-items:center;gap:8px">${logoEl}<div style="font-family:Poppins,sans-serif;font-size:9pt;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#325230;line-height:1.25">GIVING<br>TREE</div></div>
-  <div style="text-align:center"><div style="font-family:Poppins,sans-serif;font-size:10pt;color:#7A8B82;letter-spacing:.14em;margin-bottom:1px">PANORAMA</div><div style="font-family:'Playfair Display',Georgia,serif;font-size:30pt;font-weight:700;line-height:1"><span style="color:#325230">Impact </span><span style="color:#6B7D89">Capital</span></div></div>
-  <div style="text-align:right"><div style="font-family:Poppins,sans-serif;font-size:11pt;color:#B84E1A;margin-bottom:3px">DEMO</div><div style="font-family:Poppins,sans-serif;font-size:10pt;color:#111B1E;line-height:1.5">Gerado<br>${dateStr}<br>2026</div></div>
-</div>
-<div style="height:0.5px;background:#BBCBBD;flex-shrink:0"></div>
-<div style="flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:14px 28px 12px;min-height:0">
-  <div style="text-align:center">
-    <div style="font-family:Poppins,sans-serif;font-size:9pt;color:#6B7D89;margin-bottom:8px">Mapeamento</div>
-    <div style="display:flex;gap:18px;justify-content:center">
-      <div style="width:135px;height:88px;border:1.5px solid #325230;border-radius:8px;background:#FFFAEE;padding:16px;text-align:center;box-sizing:border-box;overflow:hidden"><div style="font-family:Poppins,sans-serif;font-size:23pt;color:#1B4332;line-height:1.1;white-space:nowrap">${fl.length}</div><div style="font-family:Poppins,sans-serif;font-size:8pt;font-weight:300;color:#111B1E;margin-top:4px">operações</div></div>
-      <div style="width:135px;height:88px;border:1.5px solid #325230;border-radius:8px;background:#FFFAEE;padding:16px;text-align:center;box-sizing:border-box;overflow:hidden"><div style="font-family:Poppins,sans-serif;font-size:${capFontSize}pt;color:#1B4332;line-height:1.1;white-space:nowrap">${capStr}</div><div style="font-family:Poppins,sans-serif;font-size:8pt;font-weight:300;color:#111B1E;margin-top:4px">em capital (USD)</div></div>
-    </div>
-  </div>
-  <div>
-    <div style="display:flex;gap:12px;margin-bottom:10px">
-      <div style="flex:1;background:#6B7D89;border-radius:8px;padding:12px 6px;text-align:center"><div style="font-family:Poppins,sans-serif;font-size:15pt;font-weight:700;color:#FFFAEE;line-height:1.1;white-space:nowrap">${modalCount}</div><div style="font-family:Poppins,sans-serif;font-size:6.5pt;font-weight:700;color:#FFFAEE;margin-top:3px">modalidades</div></div>
-      <div style="flex:1;background:#4E614D;border-radius:8px;padding:12px 6px;text-align:center"><div style="font-family:Poppins,sans-serif;font-size:15pt;font-weight:700;color:#FFFAEE;line-height:1.1;white-space:nowrap">${uniqueSectors.size}</div><div style="font-family:Poppins,sans-serif;font-size:6.5pt;font-weight:700;color:#FFFAEE;margin-top:3px">áreas de impacto</div></div>
-      <div style="flex:1;background:#B66734;border-radius:8px;padding:12px 6px;text-align:center"><div style="font-family:Poppins,sans-serif;font-size:15pt;font-weight:700;color:#FFFAEE;line-height:1.1;white-space:nowrap">${uniqueCities.size}</div><div style="font-family:Poppins,sans-serif;font-size:6.5pt;font-weight:700;color:#FFFAEE;margin-top:3px">cidades</div></div>
-    </div>
-    <div style="display:flex;gap:12px">
-      <div style="flex:1;display:flex;gap:6px"><div style="width:4px;background:#6B7D89;border-radius:2px;flex-shrink:0"></div><div style="font-family:Poppins,sans-serif;font-size:8.5pt;color:#111B1E;line-height:1.55">${s1}</div></div>
-      <div style="flex:1;display:flex;gap:6px"><div style="width:4px;background:#4E614D;border-radius:2px;flex-shrink:0"></div><div style="font-family:Poppins,sans-serif;font-size:8.5pt;color:#111B1E;line-height:1.55">${s2}</div></div>
-      <div style="flex:1;display:flex;gap:6px"><div style="width:4px;background:#B66734;border-radius:2px;flex-shrink:0"></div><div style="font-family:Poppins,sans-serif;font-size:8.5pt;color:#111B1E;line-height:1.55">${s3}</div></div>
-    </div>
-  </div>
-  <div>
-    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px"><div style="font-family:Poppins,sans-serif;font-size:12pt;font-weight:700;color:#111B1E">DEALS EM DESTAQUE</div><div style="font-family:Poppins,sans-serif;font-size:8pt;color:#7A8B82">${tableNote}</div></div>
-    <table style="width:100%;border-collapse:collapse;table-layout:fixed">
-      <colgroup><col style="width:29%"><col style="width:14%"><col style="width:18%"><col style="width:22%"><col style="width:17%"></colgroup>
-      <thead><tr style="border-top:1px solid #BBCBBD;border-bottom:1px solid #BBCBBD">
-        <th style="text-align:left;font-family:Poppins,sans-serif;font-size:8.5pt;font-weight:700;color:#7A8B82;padding:5px 10px 5px 0;text-transform:uppercase;white-space:nowrap;overflow:hidden">INVESTIDOR / FUNDO</th>
-        <th style="text-align:left;font-family:Poppins,sans-serif;font-size:8.5pt;font-weight:700;color:#7A8B82;padding:5px 8px;white-space:nowrap">VALOR <span style="font-size:7pt;font-weight:300">(USD)</span></th>
-        <th style="text-align:left;font-family:Poppins,sans-serif;font-size:8.5pt;font-weight:700;color:#7A8B82;padding:5px 8px;text-transform:uppercase;white-space:nowrap;overflow:hidden">CIDADE</th>
-        <th style="text-align:left;font-family:Poppins,sans-serif;font-size:8.5pt;font-weight:700;color:#7A8B82;padding:5px 8px;text-transform:uppercase;white-space:nowrap;overflow:hidden">ÁREA DE IMPACTO</th>
-        <th style="text-align:left;font-family:Poppins,sans-serif;font-size:8.5pt;font-weight:700;color:#7A8B82;padding:5px 0 5px 8px;text-transform:uppercase;white-space:nowrap;overflow:hidden">TIPO DE INVEST.</th>
-      </tr></thead>
-      <tbody>${tableRows}</tbody>
-    </table>
-  </div>
-  <div style="text-align:center;padding:8px 0">
-    <div style="font-family:Poppins,sans-serif;font-size:11.5pt;font-weight:700;font-style:italic;color:#325230;margin-bottom:3px">O fluxo de capital de impacto está aí.</div>
-    <div style="font-family:Poppins,sans-serif;font-size:11.5pt;font-weight:700;font-style:italic;color:#325230">Fragmentado, disperso, difícil de acompanhar — até agora</div>
-  </div>
-</div>
-<div style="height:4px;background:linear-gradient(to right,#325230,#6B7D89);flex-shrink:0"></div>
-<div style="background:#F5F3F0;padding:13px 28px 10px;flex-shrink:0">
-  <div style="font-family:Poppins,sans-serif;font-size:12pt;font-weight:700;color:#1B4332;margin-bottom:4px">O Money Map está em construção — e queremos ouvir você.</div>
-  <div style="font-family:Poppins,sans-serif;font-size:10pt;color:#111B1E;line-height:1.45;margin-bottom:5px">Estamos construindo a inteligência que o setor de impacto ainda não tem. Suas impressões, conexões e ideias nos ajudam a entregar isso mais rápido a você.</div>
-  <div style="font-family:Poppins,sans-serif;font-size:10pt;margin-bottom:9px"><a href="https://givingtree.com.br/map" target="_blank" rel="noopener" style="color:#1B4332;font-weight:700;text-decoration:underline">GivingTree Money Map · givingtree.com.br/map</a></div>
-  <div style="text-align:center;margin-bottom:9px"><a href="https://www.givingtree.com.br/contato" style="display:inline-block;background:#D45B1A;color:#FFFAEE;font-family:Poppins,sans-serif;font-size:11pt;font-weight:700;padding:9px 30px;border-radius:8px;text-decoration:none">Contato | Feedback →</a></div>
-  <div style="display:flex;align-items:center;justify-content:center;gap:20px;margin-bottom:8px"><span style="font-family:Poppins,sans-serif;font-size:10.5pt;font-weight:600;color:#111B1E">Acompanhe antes de todo mundo:</span><a href="https://www.linkedin.com/company/gvngtree" style="line-height:0;text-decoration:none">${liEl}</a><a href="https://givingtree.substack.com" style="line-height:0;text-decoration:none">${ssEl}</a></div>
-  <div style="font-family:Poppins,sans-serif;font-size:6.8pt;color:#111B1E;line-height:1.4"><strong>Aviso legal:</strong> Este documento é uma demonstração de um relatório customizado gerado automaticamente pela plataforma GivingTree, que, na data de produção, está em fase de desenvolvimento. Conteúdo e formato estão sujeitos a revisão. Nesta demonstração, valores representam o volume de capital identificado nas operações mapeadas e podem incluir erros ou sobreposições entre compromissos e aportes. Operações atribuídas a uma cidade podem abranger sua região metropolitana. Dados coletados de fontes públicas. Este documento não constitui aconselhamento financeiro.</div>
-</div>
-</div>`;
+  const themeCounts={};
+  fl.forEach(d=>{const lbl=SL[d.sector]||d.sector;themeCounts[lbl]=(themeCounts[lbl]||0)+1});
+  const themesSorted=Object.entries(themeCounts).sort((a,b)=>b[1]-a[1]);
+
+  const socialKeys=new Set(['economic-inclusion','health','housing','fintech']);
+  const envKeys=new Set(['climate','energy','conservation','agritech','circular-economy','infrastructure']);
+  let socialThemeCount=0,envThemeCount=0;
+  themesSorted.forEach(([lbl])=>{
+    const key=Object.entries(SL).find(([,v])=>v===lbl)?.[0];
+    if(key&&socialKeys.has(key))socialThemeCount++;
+    else if(key&&envKeys.has(key))envThemeCount++;
+  });
+
+  const cityCountry={};fl.forEach(d=>{cityCountry[d.city]=d.country});
+  const cityCounts={};fl.forEach(d=>{cityCounts[d.city]=(cityCounts[d.city]||0)+1});
+  const countryCounts={};fl.forEach(d=>{countryCounts[d.country]=(countryCounts[d.country]||0)+1});
+  const countryMetros={};fl.forEach(d=>{if(!countryMetros[d.country])countryMetros[d.country]=new Set();countryMetros[d.country].add(d.city)});
+  const citiesSorted=Object.entries(cityCounts).sort((a,b)=>b[1]-a[1]);
+  const countriesSorted=Object.entries(countryCounts).sort((a,b)=>b[1]-a[1]);
+  const continents=new Set(fl.map(d=>d.continent));
+
+  const dfiInvestors=new Set(['DFI']);
+  const crossBorderCount=fl.filter(d=>d.sourceType==='DFI'||d.investor.includes('IFC')||d.investor.includes('IDB')||d.investor.includes('JICA')||d.investor.includes('AIIB')||d.investor.includes('CAF')||d.investor.includes('EBRD')).length;
+  const crossBorderPct=fl.length>0?Math.round((crossBorderCount/fl.length)*100):0;
+
+  // Highlights: top 5 by value per prompt logic
+  const sortedByValue=[...fl].sort((a,b)=>(b.amount||0)-(a.amount||0));
+  const top3=sortedByValue.slice(0,3);
+  const top3FundraiseCount=top3.filter(d=>d.dealType==='Fund Launch').length;
+  const allFundraises=sortedByValue.filter(d=>d.dealType==='Fund Launch');
+  let highlightRows;
+  if(top3FundraiseCount===0){
+    highlightRows=[...top3,...allFundraises.slice(0,2)];
+  } else if(top3FundraiseCount===1){
+    const alreadyIn=top3.find(d=>d.dealType==='Fund Launch');
+    const nextFund=allFundraises.find(d=>d!==alreadyIn);
+    highlightRows=[...top3,sortedByValue[3],nextFund].filter(Boolean);
+  } else {
+    highlightRows=sortedByValue.slice(0,5);
+  }
+  highlightRows=highlightRows.slice(0,5);
+
+  return{totalCapital,totalDeals:fl.length,allInst,investorSet,recipientSet,investorCats,dealSubtypes,investments,fundraises,themesSorted,socialThemeCount,envThemeCount,citiesSorted,countriesSorted,continents,cityCountry,countryMetros,crossBorderPct,highlightRows};
 }
 
-// Bug 1: open PDF in new tab instead of triggering download
-// Bug 4: pre-rasterize SVGs so html2canvas renders them correctly
+function joinList(arr){if(!arr.length)return'';if(arr.length===1)return arr[0];if(arr.length===2)return arr[0]+' and '+arr[1];return arr.slice(0,-1).join(', ')+', and '+arr[arr.length-1]}
+
+function buildCol1(stats){
+  const{investorSet,recipientSet,investorCats,investments,fundraises,dealSubtypes}=stats;
+  const cats=Object.entries(investorCats).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  let t=`—across **${investorSet.size} investors** and **${recipientSet.size} private companies**.\n\nInvestors comprise `;
+  t+=joinList(cats.map(([k,v])=>`${v} ${k}`))+'.';
+  const invSubs=Object.entries(dealSubtypes).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  t+='\n\nDeals include:\n• **'+investments.length+' investments**';
+  if(invSubs.length)t+='—comprising '+joinList(invSubs.map(([k,v])=>`${v} ${k}`));
+  if(fundraises.length)t+='\n• **'+fundraises.length+' rounds of capital raised** by private companies';
+  return t;
+}
+
+function buildCol2(stats){
+  const{themesSorted,socialThemeCount,envThemeCount,totalDeals}=stats;
+  const top5=themesSorted.slice(0,5);
+  const themeList=top5.map(([k,v])=>`${k} (${v} deals)`);
+  const extra=themesSorted.length-5;
+  let opening;
+  if(envThemeCount===0)opening=`—across social themes. This capital is reaching communities through `;
+  else if(socialThemeCount===0)opening=`—across environmental themes. This capital is reaching ecosystems through `;
+  else opening=`—across ${socialThemeCount} social and ${envThemeCount} environmental themes. This capital is reaching communities and ecosystems through `;
+  let t=opening+joinList(themeList)+(extra>0?`, and ${extra} other themes`:'')+'.';
+  if(themesSorted.length>0){
+    const[top,topN]=themesSorted[0];
+    const pct=Math.round((topN/totalDeals)*100);
+    t+=`\n\nThe most active theme, ${top}, represents ${pct}% of all deals mapped in this report.`;
+  }
+  return t;
+}
+
+function buildCol3(stats){
+  const{citiesSorted,countriesSorted,continents,cityCountry,countryMetros,crossBorderPct,totalDeals}=stats;
+  const nMetros=Object.keys(cityCountry).length;
+  const nCountries=countriesSorted.length;
+  const nCont=continents.size;
+  let t=`—across ${nMetros} metro areas in ${nCountries} countries and ${nCont} continents.`;
+  const top3c=citiesSorted.slice(0,3);
+  if(top3c.length>=1){
+    const[c1,n1]=top3c[0];
+    t+=` The largest concentration of activity is in ${c1} (${cityCountry[c1]}) with ${n1} deals`;
+    if(top3c.length>=2){const[c2,n2]=top3c[1];t+=`, followed by ${c2} (${cityCountry[c2]}, ${n2} deals)`;}
+    if(top3c.length>=3){const[c3,n3]=top3c[2];t+=` and ${c3} (${cityCountry[c3]}, ${n3} deals)`;}
+    t+='.';
+  }
+  const top3co=countriesSorted.slice(0,3);
+  if(top3co.length>=1){
+    const[co1,n1]=top3co[0];const m1=(countryMetros[co1]||new Set()).size;
+    t+=`\n\nBy country, ${co1} leads with ${n1} deals across ${m1} metro area${m1!==1?'s':''}`;
+    if(top3co.length>=2){const[co2,n2]=top3co[1];const m2=(countryMetros[co2]||new Set()).size;t+=`, followed by ${co2} (${n2} deals, ${m2} metro${m2!==1?'s':''})`;}
+    if(top3co.length>=3){const[co3,n3]=top3co[2];const m3=(countryMetros[co3]||new Set()).size;t+=` and ${co3} (${n3} deals, ${m3} metro${m3!==1?'s':''})`;}
+    t+='.';
+  }
+  const domPct=100-crossBorderPct;
+  const xbSentence=crossBorderPct>=50?'underscoring the increasingly global nature of impact capital.':crossBorderPct>=20?'reflecting a mix of domestic deployment and international reach.':'with the majority of capital staying close to home.';
+  t+=`\n\n${domPct}% of deals are domestic, while ${crossBorderPct}% are cross-border (investors in one country backing recipients in another), ${xbSentence}`;
+  return t;
+}
+
+// Rasterize SVG string to PNG data URL at 2x for sharpness
+function rasterizeSvgR(svgStr,w,h){return new Promise(res=>{const blob=new Blob([svgStr],{type:'image/svg+xml'});const burl=URL.createObjectURL(blob);const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=w*2;c.height=h*2;const ctx=c.getContext('2d');ctx.scale(2,2);ctx.drawImage(img,0,0,w,h);URL.revokeObjectURL(burl);res(c.toDataURL('image/png'))};img.onerror=()=>{URL.revokeObjectURL(burl);res('')};img.src=burl})}
+
+// Draw a left→right gradient bar using thin rect slices (jsPDF has no native gradient)
+function drawGradBar(doc,x,y,w,h){
+  const steps=30,sw=w/steps;
+  const r1=0x32,g1=0x52,b1=0x30,r2=0x28,g2=0x4c,b2=0x66;
+  for(let i=0;i<steps;i++){
+    const t=i/(steps-1);
+    doc.setFillColor(Math.round(r1+(r2-r1)*t),Math.round(g1+(g2-g1)*t),Math.round(b1+(b2-b1)*t));
+    doc.rect(x+i*sw,y,sw+0.5,h,'F');
+  }
+}
+
+function drawRule(doc,x,y,w,r=0xBB,g=0xCB,bd=0xBD){doc.setDrawColor(r,g,bd);doc.setLineWidth(0.5);doc.line(x,y,x+w,y)}
+
+// Render text with inline **bold** markers, word-wrapping at maxWidth.
+// font sizes are in pt; lineH is vertical advance per line.
+// fontFamily/normalStyle/boldStyle let callers specify which font to use
+function renderRich(doc,text,x,y,maxW,fontSize,lineH,maxY,colorR,colorG,colorB,fontFamily,normalStyle,boldStyle){
+  colorR=colorR??0x11;colorG=colorG??0x1b;colorB=colorB??0x1e;
+  fontFamily=fontFamily??'Roboto';normalStyle=normalStyle??'light';boldStyle=boldStyle??'medium';
+  doc.setFontSize(fontSize);
+  const tokens=[];let rem=text;
+  while(rem.length){
+    const bm=rem.match(/^\*\*(.+?)\*\*/);
+    if(bm){tokens.push({t:bm[1],b:true});rem=rem.slice(bm[0].length);continue}
+    const ni=rem.indexOf('**');const newline=rem.indexOf('\n');
+    let end=rem.length;
+    if(ni>=0)end=Math.min(end,ni);
+    if(newline>=0)end=Math.min(end,newline);
+    if(end===0){tokens.push({nl:true});rem=rem.slice(1);}
+    else{tokens.push({t:rem.slice(0,end),b:false});rem=rem.slice(end);}
+  }
+  const meas=(txt,bold)=>{doc.setFont(fontFamily,bold?boldStyle:normalStyle);return doc.getStringUnitWidth(txt)*fontSize};
+  let curX=x,curY=y,lineSegs=[];
+  const flush=()=>{lineSegs.forEach(s=>{doc.setFont(fontFamily,s.b?boldStyle:normalStyle);doc.setTextColor(colorR,colorG,colorB);doc.text(s.t,s.x,curY)});lineSegs=[]};
+  for(const tok of tokens){
+    if(tok.nl){flush();curY+=lineH;curX=x;if(curY>maxY)return;continue}
+    const words=tok.t.split(' ');
+    for(let wi=0;wi<words.length;wi++){
+      const w=words[wi];if(w==='')continue;
+      const ws=w+(wi<words.length-1?' ':'');
+      const ww=meas(ws,tok.b);
+      if(curX+ww>x+maxW+2&&curX>x){flush();curY+=lineH;curX=x;if(curY>maxY)return}
+      lineSegs.push({t:ws,b:tok.b,x:curX});curX+=ww;
+    }
+  }
+  flush();
+}
+
+const LOGO_SVG=`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="2000" zoomAndPan="magnify" viewBox="0 0 1500 1499.999933" height="2000" preserveAspectRatio="xMidYMid meet" version="1.0"><defs><g/><clipPath id="e61daaafe7"><path d="M 4 0.878906 L 469 0.878906 L 469 734.320312 L 4 734.320312 Z M 4 0.878906 " clip-rule="nonzero"/></clipPath><clipPath id="867285d1ec"><rect x="0" width="465" y="0" height="735"/></clipPath><clipPath id="0a63b7d588"><path d="M 0.761719 226 L 537 226 L 537 604 L 0.761719 604 Z M 0.761719 226 " clip-rule="nonzero"/></clipPath><clipPath id="0c5aaf6c24"><rect x="0" width="537" y="0" height="378"/></clipPath><clipPath id="3fa17b8f1d"><path d="M 465 98 L 1433.320312 98 L 1433.320312 370 L 465 370 Z M 465 98 " clip-rule="nonzero"/></clipPath><clipPath id="eda9da026a"><rect x="0" width="969" y="0" height="272"/></clipPath><clipPath id="3a02509499"><rect x="0" width="584" y="0" height="241"/></clipPath><clipPath id="3d82b17a33"><rect x="0" width="1434" y="0" height="735"/></clipPath></defs><g transform="matrix(1, 0, 0, 1, 53, 386)"><g clip-path="url(#3d82b17a33)"><g clip-path="url(#e61daaafe7)"><g transform="matrix(1, 0, 0, 1, 4, 0.000000000000113687)"><g clip-path="url(#867285d1ec)"><g fill="#325230" fill-opacity="1"><g transform="translate(1.027971, 516.518747)"><g><path d="M 59.609375 -288.359375 C 59.609375 -244.296875 69.4375 -222.15625 89.09375 -221.9375 C 92.550781 -221.9375 97.953125 -225.175781 105.296875 -231.65625 C 117.609375 -240.726562 127.976562 -245.59375 136.40625 -246.25 C 150.226562 -246.25 157.789062 -239.660156 159.09375 -226.484375 C 159.738281 -217.628906 155.632812 -210.71875 146.78125 -205.75 C 142.238281 -203.363281 137.484375 -202.171875 132.515625 -202.171875 C 107.890625 -202.171875 90.070312 -204.007812 79.0625 -207.6875 C 52.0625 -216.539062 33.484375 -234.6875 23.328125 -262.125 C 18.796875 -274.863281 16.53125 -288.363281 16.53125 -302.625 C 16.53125 -343.664062 35.753906 -369.582031 74.203125 -380.375 C 86.078125 -383.832031 99.035156 -385.5625 113.078125 -385.5625 L 358.671875 -385.5625 C 382.429688 -385.5625 397.769531 -390.53125 404.6875 -400.46875 C 409.21875 -407.382812 411.484375 -417.753906 411.484375 -431.578125 L 425.09375 -431.578125 C 433.519531 -403.273438 433.410156 -384.640625 424.765625 -375.671875 C 416.128906 -366.710938 401.765625 -361.585938 381.671875 -360.296875 L 259.203125 -360.296875 L 259.203125 -67.71875 C 259.203125 -47.84375 260.601562 -34.9375 263.40625 -29 C 266.21875 -23.0625 272.8125 -19.007812 283.1875 -16.84375 L 301.96875 -13.28125 L 301.96875 0 L 176.265625 0 L 176.265625 -13.609375 L 198.609375 -18.46875 C 206.609375 -20.195312 211.578125 -22.679688 213.515625 -25.921875 C 215.242188 -29.585938 216.109375 -37.472656 216.109375 -49.578125 L 216.109375 -360.296875 L 109.1875 -360.296875 C 84.132812 -360.296875 68.472656 -345.390625 62.203125 -315.578125 C 60.472656 -307.148438 59.609375 -298.078125 59.609375 -288.359375 Z M 59.609375 -288.359375 "/></g></g></g></g></g></g><g clip-path="url(#0a63b7d588)"><g transform="matrix(1, 0, 0, 1, 0, 226)"><g clip-path="url(#0c5aaf6c24)"><g fill="#325230" fill-opacity="1"><g transform="translate(402.166551, 377.218841)"><g><path d="M -147.03125 -206.59375 L -147.03125 -365.96875 L -143.8125 -365.96875 C -143.8125 -357.019531 -140.679688 -349.414062 -134.421875 -343.15625 C -128.160156 -336.894531 -120.554688 -333.765625 -111.609375 -333.765625 L 0 -333.765625 C -3.9375 -327.328125 -7.15625 -320.351562 -9.65625 -312.84375 C -12.164062 -305.332031 -13.421875 -296.566406 -13.421875 -286.546875 C -13.421875 -273.671875 -12.34375 -262.3125 -10.1875 -252.46875 C -8.039062 -242.632812 -5.804688 -232.882812 -3.484375 -223.21875 C -1.160156 -213.5625 0 -202.65625 0 -190.5 C 0 -167.238281 -4.828125 -145.410156 -14.484375 -125.015625 C -24.148438 -104.628906 -37.65625 -86.65625 -55 -71.09375 C -72.351562 -55.539062 -92.382812 -43.378906 -115.09375 -34.609375 C -137.8125 -25.847656 -162.050781 -21.46875 -187.8125 -21.46875 C -213.570312 -21.46875 -237.804688 -25.847656 -260.515625 -34.609375 C -283.234375 -43.378906 -303.269531 -55.539062 -320.625 -71.09375 C -337.976562 -86.65625 -351.484375 -104.628906 -361.140625 -125.015625 C -370.796875 -145.410156 -375.625 -167.238281 -375.625 -190.5 C -375.625 -209.8125 -372.3125 -228.050781 -365.6875 -245.21875 C -359.070312 -262.394531 -350.578125 -277.691406 -340.203125 -291.109375 C -329.835938 -304.523438 -318.570312 -314.988281 -306.40625 -322.5 C -300.675781 -326.082031 -294.769531 -328.851562 -288.6875 -330.8125 C -282.613281 -332.78125 -276.710938 -333.765625 -270.984375 -333.765625 C -255.242188 -333.765625 -241.738281 -328.128906 -230.46875 -316.859375 C -219.207031 -305.597656 -213.578125 -292.097656 -213.578125 -276.359375 C -213.578125 -260.617188 -219.207031 -247.113281 -230.46875 -235.84375 C -241.738281 -224.570312 -255.242188 -218.9375 -270.984375 -218.9375 C -279.929688 -218.9375 -287.535156 -220.546875 -293.796875 -223.765625 C -300.054688 -226.984375 -305.597656 -230.648438 -310.421875 -234.765625 C -315.253906 -238.878906 -320.082031 -242.546875 -324.90625 -245.765625 C -329.738281 -248.984375 -335.375 -250.59375 -341.8125 -250.59375 C -350.40625 -250.59375 -356.9375 -246.835938 -361.40625 -239.328125 C -365.875 -231.816406 -368.820312 -223.320312 -370.25 -213.84375 C -371.6875 -204.363281 -372.40625 -196.582031 -372.40625 -190.5 C -372.40625 -177.976562 -364.085938 -166.441406 -347.453125 -155.890625 C -330.816406 -145.335938 -308.546875 -136.929688 -280.640625 -130.671875 C -252.742188 -124.410156 -221.800781 -121.28125 -187.8125 -121.28125 C -153.820312 -121.28125 -122.875 -124.410156 -94.96875 -130.671875 C -67.070312 -136.929688 -44.804688 -145.335938 -28.171875 -155.890625 C -11.535156 -166.441406 -3.21875 -177.976562 -3.21875 -190.5 C -3.21875 -196.582031 -3.929688 -204.539062 -5.359375 -214.375 C -6.796875 -224.207031 -9.835938 -232.523438 -14.484375 -239.328125 L -111.609375 -239.328125 C -120.554688 -239.328125 -128.160156 -236.195312 -134.421875 -229.9375 C -140.679688 -223.675781 -143.8125 -215.894531 -143.8125 -206.59375 Z M -147.03125 -206.59375 "/></g></g></g></g></g></g><g clip-path="url(#3fa17b8f1d)"><g transform="matrix(1, 0, 0, 1, 465, 98)"><g clip-path="url(#eda9da026a)"><g fill="#325230" fill-opacity="1"><g transform="translate(0.209442, 205.310039)"><g><path d="M 11.277344 -73.632812 C 11.277344 -27.863281 45.109375 2.875 87.121094 2.875 C 111.226562 2.875 131.347656 -7.296875 145.058594 -22.554688 L 145.058594 -75.84375 L 76.066406 -75.84375 L 76.066406 -59.480469 L 126.703125 -59.480469 L 126.703125 -29.410156 C 119.40625 -22.113281 104.8125 -13.488281 87.121094 -13.488281 C 54.839844 -13.488281 30.292969 -38.695312 30.292969 -73.632812 C 30.292969 -108.792969 54.839844 -133.558594 87.121094 -133.558594 C 104.8125 -133.558594 120.511719 -125.15625 129.800781 -113.214844 L 144.394531 -122.28125 C 131.347656 -138.421875 113.214844 -149.921875 87.121094 -149.921875 C 45.109375 -149.921875 11.277344 -119.40625 11.277344 -73.632812 Z M 11.277344 -73.632812 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(198.334404, 205.310039)"><g><path d="M 35.601562 0 L 35.601562 -147.488281 L 17.246094 -147.488281 L 17.246094 0 Z M 35.601562 0 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(291.651249, 205.310039)"><g><path d="M 84.027344 0 L 143.507812 -147.488281 L 122.503906 -147.488281 L 72.75 -20.121094 L 22.996094 -147.488281 L 1.988281 -147.488281 L 61.25 0 Z M 84.027344 0 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(477.614897, 205.310039)"><g><path d="M 35.601562 0 L 35.601562 -147.488281 L 17.246094 -147.488281 L 17.246094 0 Z M 35.601562 0 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(570.931741, 205.310039)"><g><path d="M 139.308594 0 L 139.308594 -147.488281 L 120.953125 -147.488281 L 120.953125 -30.957031 L 36.042969 -147.488281 L 17.246094 -147.488281 L 17.246094 0 L 35.601562 0 L 35.601562 -118.964844 L 121.617188 0 Z M 139.308594 0 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(767.951125, 205.310039)"><g><path d="M 11.277344 -73.632812 C 11.277344 -27.863281 45.109375 2.875 87.121094 2.875 C 111.226562 2.875 131.347656 -7.296875 145.058594 -22.554688 L 145.058594 -75.84375 L 76.066406 -75.84375 L 76.066406 -59.480469 L 126.703125 -59.480469 L 126.703125 -29.410156 C 119.40625 -22.113281 104.8125 -13.488281 87.121094 -13.488281 C 54.839844 -13.488281 30.292969 -38.695312 30.292969 -73.632812 C 30.292969 -108.792969 54.839844 -133.558594 87.121094 -133.558594 C 104.8125 -133.558594 120.511719 -125.15625 129.800781 -113.214844 L 144.394531 -122.28125 C 131.347656 -138.421875 113.214844 -149.921875 87.121094 -149.921875 C 45.109375 -149.921875 11.277344 -119.40625 11.277344 -73.632812 Z M 11.277344 -73.632812 "/></g></g></g></g></g></g><g transform="matrix(1, 0, 0, 1, 495, 333)"><g clip-path="url(#3a02509499)"><g fill="#325230" fill-opacity="1"><g transform="translate(0.273892, 180.603189)"><g><path d="M 71.539062 0 L 71.539062 -106.8125 L 109.769531 -106.8125 L 109.769531 -131.445312 L 4.925781 -131.445312 L 4.925781 -106.8125 L 43.355469 -106.8125 L 43.355469 0 Z M 71.539062 0 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(142.755566, 180.603189)"><g><path d="M 119.425781 0 L 89.863281 -50.054688 C 104.054688 -53.40625 118.636719 -65.820312 118.636719 -89.078125 C 118.636719 -113.511719 101.886719 -131.445312 74.492188 -131.445312 L 13.007812 -131.445312 L 13.007812 0 L 40.992188 0 L 40.992188 -47.101562 L 61.488281 -47.101562 L 87.304688 0 Z M 90.0625 -89.273438 C 90.0625 -78.238281 81.585938 -71.144531 70.355469 -71.144531 L 40.992188 -71.144531 L 40.992188 -107.402344 L 70.355469 -107.402344 C 81.585938 -107.402344 90.0625 -100.308594 90.0625 -89.273438 Z M 90.0625 -89.273438 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(297.258086, 180.603189)"><g><path d="M 106.023438 0 L 106.023438 -24.238281 L 40.992188 -24.238281 L 40.992188 -54.785156 L 104.644531 -54.785156 L 104.644531 -78.828125 L 40.992188 -78.828125 L 40.992188 -107.402344 L 106.023438 -107.402344 L 106.023438 -131.445312 L 13.007812 -131.445312 L 13.007812 0 Z M 106.023438 0 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(439.936838, 180.603189)"><g><path d="M 106.023438 0 L 106.023438 -24.238281 L 40.992188 -24.238281 L 40.992188 -54.785156 L 104.644531 -54.785156 L 104.644531 -78.828125 L 40.992188 -78.828125 L 40.992188 -107.402344 L 106.023438 -107.402344 L 106.023438 -131.445312 L 13.007812 -131.445312 L 13.007812 0 Z M 106.023438 0 "/></g></g></g></g></g></g></g></svg>`;
+
 async function generateReport(){
   const fl=getFiltered();
-  if(fl.length===0){alert('Nenhuma operação encontrada com os filtros atuais.');return}
-  if(typeof html2pdf==='undefined'){alert('Biblioteca de PDF ainda carregando. Tente novamente.');return}
+  if(!fl.length){alert('No deals match the current filters.');return}
+  if(typeof window.jspdf==='undefined'){alert('PDF library not loaded. Please refresh and try again.');return}
   const btn=document.getElementById('gerarRelatorioBtn');
-  if(btn){btn.textContent='Gerando…';btn.disabled=true}
+  if(btn){btn.textContent='Generating…';btn.disabled=true}
+  try{
+    const{jsPDF}=window.jspdf;
+    const doc=new jsPDF({unit:'pt',format:[1240,1754],compress:true,orientation:'portrait'});
+    doc.setCharSpace(0);
 
-  const tMarkStr=`<svg viewBox="0 0 1500 1500" xmlns="http://www.w3.org/2000/svg"><g transform="translate(110,0)"><g><g transform="translate(11,0)"><g fill="#325230"><g transform="translate(0.939,1253.113)"><path d="M 165.516 -800.563 C 165.516 -678.227 192.797 -616.758 247.359 -616.156 C 256.953 -616.156 271.946 -625.148 292.344 -643.141 C 326.52 -668.328 355.301 -681.82 378.688 -683.625 C 417.07 -683.625 438.063 -665.332 441.656 -628.75 C 443.457 -604.164 432.063 -584.977 407.469 -571.188 C 394.883 -564.594 381.691 -561.297 367.891 -561.297 C 299.535 -561.297 250.066 -566.391 219.484 -576.578 C 144.523 -601.172 92.953 -651.547 64.766 -727.703 C 52.172 -763.078 45.875 -800.555 45.875 -840.141 C 45.875 -954.078 99.242 -1026.035 205.984 -1056.016 C 238.961 -1065.609 274.941 -1070.406 313.922 -1070.406 L 995.75 -1070.406 C 1061.719 -1070.406 1104.297 -1084.195 1123.484 -1111.781 C 1136.078 -1130.977 1142.375 -1159.766 1142.375 -1198.141 L 1180.156 -1198.141 C 1203.539 -1119.586 1203.238 -1067.863 1179.25 -1042.969 C 1155.258 -1018.082 1115.383 -1003.844 1059.625 -1000.25 L 719.609 -1000.25 L 719.609 -188 C 719.609 -132.821 723.504 -96.988 731.297 -80.5 C 739.086 -64.008 757.379 -52.77 786.172 -46.781 L 838.344 -36.875 L 838.344 0 L 489.328 0 L 489.328 -37.781 L 551.391 -51.266 C 573.578 -56.066 587.375 -62.961 592.781 -71.953 C 597.571 -82.148 599.969 -104.039 599.969 -137.625 L 599.969 -1000.25 L 303.141 -1000.25 C 233.578 -1000.25 190.098 -958.875 172.703 -876.125 C 167.91 -852.727 165.516 -827.539 165.516 -800.563 Z"/></g></g></g></g><g transform="translate(0,447)"><g fill="#325230"><g transform="translate(1114.484,1046.847)"><path d="M -408.188 -573.547 L -408.188 -1015.984 L -399.25 -1015.984 C -399.25 -991.16 -390.555 -970.055 -373.172 -952.672 C -355.797 -935.297 -334.691 -926.609 -309.859 -926.609 L 0 -926.609 C -10.926 -908.734 -19.863 -889.363 -26.813 -868.5 C -33.77 -847.645 -37.25 -823.316 -37.25 -795.516 C -37.25 -759.754 -34.266 -728.219 -28.297 -700.906 C -22.336 -673.602 -16.129 -646.539 -9.672 -619.719 C -3.223 -592.906 0 -562.613 0 -528.844 C 0 -464.289 -13.406 -403.707 -40.219 -347.094 C -67.031 -290.488 -104.52 -240.582 -152.688 -197.375 C -200.863 -154.176 -256.484 -120.41 -319.547 -96.078 C -382.609 -71.754 -449.895 -59.594 -521.406 -59.594 C -592.906 -59.594 -660.188 -71.754 -723.25 -96.078 C -786.321 -120.41 -841.941 -154.176 -890.109 -197.375 C -938.273 -240.582 -975.766 -290.488 -1002.578 -347.094 C -1029.391 -403.707 -1042.797 -464.289 -1042.797 -528.844 C -1042.797 -582.477 -1033.609 -633.129 -1015.234 -680.797 C -996.867 -728.473 -973.285 -770.93 -944.484 -808.172 C -915.68 -845.41 -884.395 -874.461 -850.625 -895.328 C -834.738 -905.254 -818.352 -912.945 -801.469 -918.406 C -784.582 -923.875 -768.195 -926.609 -752.313 -926.609 C -708.613 -926.609 -671.117 -910.961 -639.828 -879.672 C -608.547 -848.391 -592.906 -810.898 -592.906 -767.203 C -592.906 -723.504 -608.547 -686.016 -639.828 -654.734 C -671.117 -623.453 -708.613 -607.813 -752.313 -607.813 C -777.133 -607.813 -798.234 -612.281 -815.609 -621.219 C -832.992 -630.156 -848.391 -640.332 -861.797 -651.75 C -875.203 -663.176 -888.609 -673.359 -902.016 -682.297 C -915.43 -691.234 -931.078 -695.703 -948.953 -695.703 C -972.785 -695.703 -990.91 -685.27 -1003.328 -664.406 C -1015.742 -643.551 -1023.938 -619.961 -1027.906 -593.641 C -1031.875 -567.328 -1033.859 -545.727 -1033.859 -528.844 C -1033.859 -494.082 -1010.77 -462.051 -964.594 -432.75 C -918.414 -403.457 -856.594 -380.117 -779.125 -362.734 C -701.656 -345.359 -615.75 -336.672 -521.406 -336.672 C -427.051 -336.672 -341.141 -345.359 -263.672 -362.734 C -186.211 -380.117 -124.391 -403.457 -78.203 -432.75 C -32.023 -462.051 -8.938 -494.082 -8.938 -528.844 C -8.938 -545.727 -10.922 -567.828 -14.891 -595.141 C -18.867 -622.453 -27.313 -645.547 -40.219 -664.422 L -309.859 -664.422 C -334.691 -664.422 -355.797 -655.727 -373.172 -638.344 C -390.555 -620.969 -399.25 -599.367 -399.25 -573.547 Z"/></g></g></g></g></svg>`;
-  const liStr=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28"><rect width="28" height="28" rx="5" fill="#0A66C2"/><path d="M9 12h3.5v10H9zm1.75-5.5a2 2 0 110 4 2 2 0 010-4zm5.25 5.5h3.4v1.4h.05c.47-.9 1.62-1.8 3.34-1.8 3.57 0 4.21 2.35 4.21 5.4V22H23.5v-6.4c0-1.53-.03-3.5-2.13-3.5-2.14 0-2.47 1.67-2.47 3.4V22H15.5V12z" fill="#fff"/></svg>`;
-  const ssStr=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28"><rect width="28" height="28" rx="5" fill="#FF6719"/><rect x="4" y="6" width="20" height="2.5" fill="#fff"/><rect x="4" y="12" width="20" height="2.5" fill="#fff"/><polygon points="4,18 24,18 24,26 14,22 4,26" fill="#fff"/></svg>`;
+    // ── REGISTER FONTS ───────────────────────────────────────
+    const _rf=(vfs,name,style,data)=>{doc.addFileToVFS(vfs,data);doc.addFont(vfs,name,style)};
+    _rf('PoppinsReg.ttf',    'Poppins','normal',         GTFONT_POPPINS_REGULAR);
+    _rf('PoppinsMed.ttf',    'Poppins','medium',         GTFONT_POPPINS_MEDIUM);
+    _rf('PoppinsSB.ttf',     'Poppins','semibold',       GTFONT_POPPINS_SEMIBOLD);
+    _rf('PoppinsBold.ttf',   'Poppins','bold',           GTFONT_POPPINS_BOLD);
+    _rf('PoppinsLight.ttf',  'Poppins','light',          GTFONT_POPPINS_LIGHT);
+    _rf('PoppinsIt.ttf',     'Poppins','italic',         GTFONT_POPPINS_ITALIC);
+    _rf('PoppinsBI.ttf',     'Poppins','bolditalic',     GTFONT_POPPINS_BOLDITALIC);
+    _rf('PlayfairReg.ttf',   'Playfair','normal',        GTFONT_PLAYFAIR_REGULAR);
+    _rf('PlayfairSB.ttf',    'Playfair','semibold',      GTFONT_PLAYFAIR_SEMIBOLD);
+    _rf('PlayfairBold.ttf',  'Playfair','bold',          GTFONT_PLAYFAIR_BOLD);
+    _rf('RobotoLight.ttf',   'Roboto','light',           GTFONT_ROBOTO_LIGHT);
+    _rf('RobotoReg.ttf',     'Roboto','normal',          GTFONT_ROBOTO_REGULAR);
+    _rf('RobotoMed.ttf',     'Roboto','medium',          GTFONT_ROBOTO_MEDIUM);
+    _rf('RobotoSB.ttf',      'Roboto','semibold',        GTFONT_ROBOTO_SEMIBOLD);
+    _rf('RobotoSBI.ttf',     'Roboto','semibolditalic',  GTFONT_ROBOTO_SEMIBOLDITALIC);
+    _rf('OSOneMed.ttf',      'OpenSauceOne','medium',    GTFONT_OPENSAUCE_MEDIUM);
+    _rf('OSOneSB.ttf',       'OpenSauceOne','semibold',  GTFONT_OPENSAUCE_SEMIBOLD);
 
-  const [logoSrc,liSrc,ssSrc]=await Promise.all([
-    rasterizeSvg(tMarkStr,76,76),
-    rasterizeSvg(liStr,56,56),
-    rasterizeSvg(ssStr,56,56)
-  ]);
+    const stats=computeReportStats(fl);
 
-  const wrap=document.createElement('div');
-  wrap.style.cssText='position:fixed;left:-9999px;top:0;z-index:-1;pointer-events:none';
-  wrap.innerHTML=buildReportHTML(fl,logoSrc,liSrc,ssSrc);
-  document.body.appendChild(wrap);
-  const el=wrap.querySelector('#gt-report-page');
+    // ── SVGs ─────────────────────────────────────────────────
+    // viewBox "0 130 1500 770": captures T-mark icon (SVG y≈614–900) AND
+    // "GIVING TREE" wordmark text (SVG y≈230–514) side by side.
+    // Aspect ratio 1500:770=1.948:1 almost exactly matches the 220.5×113 logo frame.
+    const LOGO_SVG_CROPPED=LOGO_SVG
+      .replace('viewBox="0 0 1500 1499.999933"','viewBox="0 130 1500 770"')
+      .replace('width="2000"','width="1500"')
+      .replace('height="2000"','height="770"');
+    const LI_SVG=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="16" fill="#284c66"/><rect x="18" y="38" width="16" height="44" fill="#fff"/><circle cx="26" cy="24" r="10" fill="#fff"/><path d="M44 38h14v6c3-5 9-8 16-8 14 0 20 9 20 24v22H80V63c0-7-1-14-9-14s-11 7-11 14v21H44z" fill="#fff"/></svg>`;
+    const SS_SVG=`<svg xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" image-rendering="optimizeQuality" fill-rule="evenodd" clip-rule="evenodd" viewBox="0 0 448 511.471"><path fill="#FF681A" d="M0 0h448v62.804H0V0zm0 229.083h448v282.388L223.954 385.808 0 511.471V229.083zm0-114.542h448v62.804H0v-62.804z"/></svg>`;
+    const[logoImg,liImg,ssImg]=await Promise.all([
+      rasterizeSvgR(LOGO_SVG_CROPPED,441,226),
+      rasterizeSvgR(LI_SVG,150,149),
+      rasterizeSvgR(SS_SVG,127,146)
+    ]);
 
-  const cleanup=()=>{
-    if(document.body.contains(wrap))document.body.removeChild(wrap);
-    if(btn){btn.textContent='Gerar Relatório';btn.disabled=false}
-  };
+    // ── PAGE BACKGROUND ───────────────────────────────────────
+    doc.setFillColor(0xFF,0xFE,0xF9);
+    doc.rect(0,0,1240,1754,'F');
 
-  html2pdf().from(el).set({
-    margin:0,filename:generateFilenameV2(),
-    image:{type:'jpeg',quality:0.98},
-    html2canvas:{scale:2,useCORS:true,logging:false,allowTaint:true},
-    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
-    enableLinks:true
-  }).output('blob').then(blob=>{
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;
-    a.target='_blank';
-    a.rel='noopener';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(()=>URL.revokeObjectURL(url),3000);
-    cleanup();
-  }).catch(err=>{
+    // ── 1. TOP GRADIENT BAR ───────────────────────────────────
+    drawGradBar(doc,0,0,1240,8.76);
+
+    // ── 2. LOGO  x=38 y=30 w=220.5 h=113 ────────────────────
+    if(logoImg)doc.addImage(logoImg,'PNG',38,30,220.5,113);
+
+    // ── 3. "Impact Capital" — Playfair SemiBold 64.5pt ───────
+    doc.setFont('Playfair','semibold');doc.setFontSize(64.5);doc.setCharSpace(0);
+    doc.setTextColor(0x32,0x52,0x30);
+    const impW=doc.getStringUnitWidth('Impact ')*64.5;
+    doc.text('Impact ',403,88);
+    doc.setTextColor(0x6B,0x7D,0x89);
+    doc.text('Capital',403+impW,88);
+
+    // ── 4. "REPORT" — Poppins Regular 28pt, ls=1.4 ──────────
+    doc.setFont('Poppins','normal');doc.setFontSize(28);
+    doc.setCharSpace(1.4);doc.setTextColor(0x7A,0x83,0x80);
+    doc.text('REPORT',620,126,{align:'center'});
+    doc.setCharSpace(0);
+
+    // ── 5. "Demo" — Roboto SemiBold 24pt, ls=1.2 ────────────
+    doc.setFont('Roboto','semibold');doc.setFontSize(24);
+    doc.setCharSpace(1.2);doc.setTextColor(0xF2,0x62,0x04);
+    doc.text('Demo',1199,58,{align:'right'});
+    doc.setCharSpace(0);
+
+    // ── 6. Generated date — Poppins Medium 24pt, ls=1.2 ─────
+    const now=new Date();
+    const MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
+    doc.setFont('Poppins','medium');doc.setFontSize(24);
+    doc.setCharSpace(1.2);doc.setTextColor(0x11,0x1B,0x1E);
+    doc.text('Generated',1199,80,{align:'right'});
+    doc.text(`${MON[now.getMonth()]} ${now.getDate()}`,1199,104,{align:'right'});
+    doc.text(`${now.getFullYear()}`,1199,128,{align:'right'});
+    doc.setCharSpace(0);
+
+    // ── 7. Header rule y=155 ─────────────────────────────────
+    drawRule(doc,0,155,1240,0xDD,0xE5,0xE0);
+
+    // ── 8 & 9. TOP STAT CARDS ────────────────────────────────
+    // Card 1: x=341.3 y=191 w=223.54 h=120.56  center-x=453.07
+    // Card 2: x=675.3 y=191 w=223.54 h=120.56  center-x=787.07
+    const capStr=fmtStatCard(stats.totalCapital);
+    const instStr=String(stats.allInst.size);
+    doc.setLineWidth(1);doc.setDrawColor(0x32,0x52,0x30);
+    [341.3,675.3].forEach((cx,i)=>{
+      doc.setFillColor(0xFF,0xFA,0xEE);
+      doc.roundedRect(cx,191,223.54,120.56,5,5,'FD');
+    });
+    // Values — OpenSauceOne Medium 40pt ls=2
+    doc.setFont('OpenSauceOne','medium');doc.setFontSize(40);
+    doc.setCharSpace(2);doc.setTextColor(0x11,0x1B,0x1E);
+    doc.text(capStr,453.07,212+40*0.75,{align:'center'});  // ~y=242
+    doc.text(instStr,787.07,212+40*0.75,{align:'center'});
+    // Labels — OpenSauceOne SemiBold 16pt ls=0.8
+    doc.setFont('OpenSauceOne','semibold');doc.setFontSize(16);
+    doc.setCharSpace(0.8);
+    doc.text('in capital (USD)',453.07,191+84+13,{align:'center'});
+    doc.text('Institutions',787.07,191+84+13,{align:'center'});
+    doc.setCharSpace(0);
+
+    // ── 10-12. BOTTOM STAT CARDS ─────────────────────────────
+    // x=92/474/856  y=350  w=292  h=90.15
+    // 90% opacity fills blended over near-white:
+    //   Deals  #6B7D89 → #7A8A94   Themes #4E614D → #60715E   Metro #B84E1A → #BF6030
+    const bCards=[
+      {lbl:'Deals',    val:String(stats.totalDeals),              x:92,  r:0x7A,g:0x8A,b:0x94},
+      {lbl:'Themes',   val:String(stats.themesSorted.length),     x:474, r:0x60,g:0x71,b:0x5E},
+      {lbl:'Metro areas',val:String(Object.keys(stats.cityCountry).length),x:856,r:0xBF,g:0x60,b:0x30},
+    ];
+    bCards.forEach(c=>{
+      const cx=c.x+146;
+      doc.setFillColor(c.r,c.g,c.b);doc.setDrawColor(0x32,0x52,0x30);doc.setLineWidth(1);
+      doc.roundedRect(c.x,350,292,90.15,5,5,'FD');
+      // Value — OpenSauceOne Medium 40pt ls=2
+      doc.setFont('OpenSauceOne','medium');doc.setFontSize(40);
+      doc.setCharSpace(2);doc.setTextColor(0xFF,0xFA,0xEE);
+      doc.text(c.val,cx,350+11+30,{align:'center'});   // ~y=391
+      // Label — OpenSauceOne SemiBold 16pt ls=0.8
+      doc.setFont('OpenSauceOne','semibold');doc.setFontSize(16);
+      doc.setCharSpace(0.8);
+      doc.text(c.lbl,cx,350+60+13,{align:'center'});   // ~y=423
+      doc.setCharSpace(0);
+    });
+
+    // ── 13-18. THREE COLUMNS + VERTICAL SEPARATORS ───────────
+    // Separators: x=78,460,842  y=465  h=92.5 (hairline)
+    doc.setLineWidth(0.25);
+    doc.setDrawColor(0x6B,0x7D,0x89);doc.line(78,465,78,557.5);
+    doc.setDrawColor(0x4E,0x61,0x4D);doc.line(460,465,460,557.5);
+    doc.setDrawColor(0xB8,0x4E,0x1A);doc.line(842,465,842,557.5);
+
+    // Column text — Roboto Light 16pt ls=0.8 black; bold segments use Roboto Medium
+    const COL_LH=24,COL_MAXY=840;
+    doc.setCharSpace(0.8);
+    renderRich(doc,buildCol1(stats),99,462,283,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium');
+    renderRich(doc,buildCol2(stats),483,462,283,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium');
+    renderRich(doc,buildCol3(stats),861,462,283,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium');
+    doc.setCharSpace(0);
+
+    // ── 19. HIGHLIGHTS HEADER  y=872 ls=1.1 ─────────────────
+    doc.setFont('Roboto','semibold');doc.setFontSize(22);
+    doc.setCharSpace(1.1);doc.setTextColor(0x20,0x49,0x37);
+    doc.text('HIGHLIGHTS',56,872);
+    doc.setCharSpace(0);
+
+    // ── 20. Table header separator  y=907 (dark) ─────────────
+    drawRule(doc,56,907,1124,0x20,0x49,0x37);
+
+    // ── 21-26. Column headers  y=921 Roboto SemiBold 18pt ls=0.9 off-black ──
+    const HCOLS=[
+      {t:'CAPITAL FLOW',x:56},{t:'VALUE',x:449},{t:'METRO AREA',x:575},
+      {t:'THEME',x:809},{t:'ACTIVITY',x:1027}
+    ];
+    doc.setFont('Roboto','semibold');doc.setFontSize(18);
+    doc.setCharSpace(0.9);doc.setTextColor(0x11,0x1B,0x1E);
+    HCOLS.forEach(h=>doc.text(h.t,h.x,921));
+    // "(USD)" subscript — OpenSauceOne SemiBold 12pt #7A8380 ls=0.6  x=463 y=942
+    doc.setFont('OpenSauceOne','semibold');doc.setFontSize(12);
+    doc.setCharSpace(0.6);doc.setTextColor(0x7A,0x83,0x80);
+    doc.text('(USD)',463,942);
+    doc.setCharSpace(0);
+
+    // ── 27. Row separator below headers  y=958 ───────────────
+    drawRule(doc,56,958,1124,0x20,0x49,0x37);
+
+    // ── 28-32. Data rows ─────────────────────────────────────
+    const ROW_YS=[974,1027,1080,1133,1186];
+    const ROW_LINES=[1011,1064,1117,1170];
+    stats.highlightRows.forEach((deal,idx)=>{
+      if(idx>=5)return;
+      const ry=ROW_YS[idx]+14;
+      // FLOW — Roboto SemiBold 16pt off-black ls=0.8
+      const multiInv=deal.investor&&deal.investor.includes('/');
+      const multiRec=deal.recipient&&deal.recipient.includes('/');
+      const plus=multiInv||multiRec;
+      const inv=truncateName(deal.investor,plus);
+      const rec=truncateName(deal.recipient,plus);
+      const arrow='→';
+      doc.setFont('Roboto','semibold');doc.setFontSize(16);
+      doc.setCharSpace(0.8);doc.setTextColor(0x11,0x1B,0x1E);
+      doc.text(`${inv}${plus?'+':''} ${arrow} ${rec}${plus?'+':''}`,56,ry);
+      // VALUE — Roboto Regular 16pt off-black ls=0.8  x=449
+      doc.setFont('Roboto','normal');
+      doc.text(fmtRowValue(deal.amount),449,ry);
+      // METRO AREA — Roboto Regular 16pt off-black ls=0.8  x=575
+      const iso=ISO3[deal.country]||deal.country.slice(0,3).toUpperCase();
+      let city=deal.city;if(city.length>16)city=city.slice(0,14)+'...';
+      doc.setTextColor(0x11,0x1B,0x1E);
+      doc.text(`${city}, ${iso}`,575,ry);
+      // THEME — off-black
+      let theme=SL[deal.sector]||deal.sector;if(theme.length>18)theme=theme.slice(0,16)+'...';
+      doc.text(theme,809,ry);
+      // ACTIVITY — off-black
+      doc.text(deal.dealType,1027,ry);
+      doc.setCharSpace(0);
+      if(idx<4)drawRule(doc,56,ROW_LINES[idx],1124,0xCC,0xD8,0xD0);
+    });
+
+    // ── 33. LOWER GRADIENT BAR  y=1259 ───────────────────────
+    drawGradBar(doc,0,1259,1240,8.76);
+
+    // ── 34-35. TAGLINE — Playfair Regular 24pt ls=1.2, fillThenStroke 0.2pt outline ──
+    doc.setFont('Playfair','normal');doc.setFontSize(24);
+    doc.setCharSpace(1.2);doc.setTextColor(0x20,0x49,0x37);
+    doc.setDrawColor(0x20,0x49,0x37);doc.setLineWidth(0.2);
+    doc.text('Impact capital flows are out there.',620,1282,{align:'center',renderingMode:'fillThenStroke'});
+    doc.text('Fragmented, dispersed, hard to see — until now.',620,1313,{align:'center',renderingMode:'fillThenStroke'});
+    doc.setCharSpace(0);
+
+    // ── 36. Thin rule  y=1358 ────────────────────────────────
+    drawRule(doc,0,1358,1240,0xBB,0xCB,0xBD);
+
+    // ── 37. CTA headline — Roboto SemiBold 24pt #325230 ls=1.2 ─
+    doc.setFont('Roboto','semibold');doc.setFontSize(24);
+    doc.setCharSpace(1.2);doc.setTextColor(0x32,0x52,0x30);
+    doc.text('Be the first to know when Beta membership opens.',620,1378+20,{align:'center'});
+    doc.setCharSpace(0);
+
+    // ── 38. CTA subtext — Roboto Regular 20pt #111B1E ls=1 ───
+    doc.setFont('Roboto','normal');doc.setFontSize(20);
+    doc.setCharSpace(1);doc.setTextColor(0x11,0x1B,0x1E);
+    doc.text('Early members lock in founding pricing for 12 months and get priority access to premium tools.',620,1409+17,{align:'center'});
+    doc.setCharSpace(0);
+
+    // ── 39-40. SOCIAL ICONS ───────────────────────────────────
+    if(liImg){doc.addImage(liImg,'PNG',503,1469,74.83,73.95);doc.link(503,1469,74.83,73.95,{url:'https://www.linkedin.com/company/gvngtree'})}
+    if(ssImg){doc.addImage(ssImg,'PNG',645.6,1469.9,63.38,73.07);doc.link(645.6,1469.9,63.38,73.07,{url:'https://givingtree.substack.com/'})}
+
+    // ── 41. FOOTER LINKS — Roboto Regular 20pt ls=1 ──────────
+    // y=1577  plain=#111B1E  links=#325230
+    doc.setFont('Roboto','normal');doc.setFontSize(20);doc.setCharSpace(1);
+    const fp=[
+      {t:'Follow us on ',lnk:null},
+      {t:'LinkedIn',lnk:'https://www.linkedin.com/company/gvngtree'},
+      {t:' and ',lnk:null},
+      {t:'Substack',lnk:'https://givingtree.substack.com/'},
+      {t:'   •   ',lnk:null},
+      {t:'See the GivingTree Map',lnk:'https://www.givingtree.com.br/map'},
+      {t:'   •   ',lnk:null},
+      {t:'Contact us',lnk:'https://www.givingtree.com.br/contact'},
+    ];
+    let totalFW=0;const fws=fp.map(p=>{const w=doc.getStringUnitWidth(p.t)*20;totalFW+=w;return w});
+    let fx=620-totalFW/2;
+    fp.forEach((p,i)=>{
+      if(p.lnk){doc.setTextColor(0x32,0x52,0x30);doc.textWithLink(p.t,fx,1577,{url:p.lnk})}
+      else{doc.setTextColor(0x11,0x1B,0x1E);doc.text(p.t,fx,1577)}
+      fx+=fws[i];
+    });
+    doc.setCharSpace(0);
+
+    // ── 42. DISCLAIMER — Roboto Regular 14pt ls=0.7 ──────────
+    const disc='This document is a demonstration of a report automatically generated by the GivingTree platform, which, as of the “Generated” production date above, is in development. Content and format are subject to revision. In this demonstration, figures represent the volume of capital identified in the mapped transactions and may include errors or overlaps between commitments and disbursements. Transactions attributed to a city may encompass its metropolitan area. All data was collected from public sources. This document does not constitute financial advice.';
+    doc.setFont('Roboto','normal');doc.setFontSize(14);
+    doc.setCharSpace(0.7);doc.setTextColor(0x11,0x1B,0x1E);
+    const discLines=doc.splitTextToSize(disc,1184);
+    let dy=1658;discLines.forEach(l=>{doc.text(l,28,dy);dy+=18});
+    doc.setCharSpace(0);
+
+    // ── SAVE ─────────────────────────────────────────────────
+    const fname=`GivingTree-Impact-Capital-Report-${MON[now.getMonth()]}-${now.getDate()}-${now.getFullYear()}.pdf`;
+    doc.save(fname);
+
+  }catch(err){
     console.error('PDF error:',err);
-    cleanup();
-  });
+    alert('PDF generation failed: '+err.message+'. See console for details.');
+  }finally{
+    if(btn){btn.textContent='Create report';btn.disabled=false}
+  }
 }
 
 document.getElementById('gerarRelatorioBtn').addEventListener('click',generateReport);

@@ -8,7 +8,7 @@
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=DM+Serif+Display&family=Playfair+Display:wght@700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="money-map.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 <div id="map-container">
@@ -19,9 +19,10 @@
 <button class="back-btn" id="backBtn">← View Brazil</button>
 <div class="overview-card" id="overviewCard"><div class="ov-header"><div class="ov-title" id="ovTitle"></div><button class="ov-close" id="ovClose">&times;</button></div><div class="ov-body"><div class="ov-stats"><div class="ov-stat"><div class="ov-stat-value" id="ovDeals">—</div><div class="ov-stat-label">Deals</div></div><div class="ov-stat"><div class="ov-stat-value" id="ovCapital">—</div><div class="ov-stat-label">Capital (USD)</div></div></div><div class="ov-blurb" id="ovBlurb"></div><div class="ov-sidebar" id="ovSidebar"></div><div class="ov-filter-row" id="ovFilterRow" style="display:none"><div class="ov-filter-check" id="ovFilterCheck"></div><div class="ov-filter-label" id="ovFilterLabel"></div></div><button class="ov-zoom-btn" id="ovZoomBtn">View</button></div></div>
 <div class="stats-bar" id="stats"></div>
-<button class="gerar-btn" id="gerarRelatorioBtn">Gerar Relatório</button>
+<button class="gerar-btn" id="gerarRelatorioBtn">Create report</button>
 <div id="map"></div>
 </div>
+<script src="money-map-fonts.js"></script>
 <script src="money-map.js"></script>
 </body>
 </html>
