@@ -532,7 +532,7 @@ function truncateName(n,withPlus){const lim=withPlus?20:22,dot=withPlus?18:20,s=
 function truncateNames(inv,rec,withPlus){
   // Individual base limit, slack-sharing, then a hard combined cap of 44 chars
   // (calibrated to "Generate Cap. → Sustainable infrastructure fund")
-  const BASE=withPlus?18:20,DOT=BASE-2,COMBINED=44;
+  const BASE=withPlus?19:21,DOT=BASE-2,COMBINED=47;
   const si=shortenName(inv),sr=shortenName(rec);
   const slack=(n)=>Math.max(0,BASE-n.length);
   let ti=si.length<=BASE+slack(sr)?si:si.slice(0,DOT+Math.min(slack(sr),4))+'...';
@@ -984,11 +984,11 @@ async function generateReport(){
     // ── 19. HIGHLIGHTS HEADER  y=898 ─────────────────────────
     doc.setFont('Roboto','semibold');doc.setFontSize(22);
     doc.setCharSpace(1.1);doc.setTextColor(0x20,0x49,0x37);
-    doc.text('HIGHLIGHTS',56,898);
+    doc.text('HIGHLIGHTS',56,906);
     doc.setCharSpace(0);
 
-    // ── 20. Table header separator  y=930 ────────────────────
-    drawRule(doc,56,930,1124,0x20,0x49,0x37);
+    // ── 20. Table header separator  y=933 ────────────────────
+    drawRule(doc,56,933,1124,0x20,0x49,0x37);
 
     // ── 21-26. Column headers  y=963 Roboto SemiBold 18pt ls=0.9 off-black ──
     const HCOLS=[
@@ -997,20 +997,20 @@ async function generateReport(){
     ];
     doc.setFont('Roboto','semibold');doc.setFontSize(18);
     doc.setCharSpace(0.9);doc.setTextColor(0x11,0x1B,0x1E);
-    HCOLS.forEach(h=>doc.text(h.t,h.x,963));
+    HCOLS.forEach(h=>doc.text(h.t,h.x,968));
     // "(USD)" inline with VALUE — OpenSauceOne SemiBold 12pt #7A8380 ls=0.6
     doc.setFont('Roboto','semibold');doc.setFontSize(18);doc.setCharSpace(0.9);
     const _vw=doc.getStringUnitWidth('VALUE')*18+0.9*5;
     doc.setFont('OpenSauceOne','semibold');doc.setFontSize(12);
     doc.setCharSpace(0.6);doc.setTextColor(0x7A,0x83,0x80);
-    doc.text('(USD)',449+_vw+4,963);
+    doc.text('(USD)',449+_vw+4,968);
     doc.setCharSpace(0);
     // Compute center of VALUE(USD) header block for data alignment
     const _usdW=doc.getStringUnitWidth('(USD)')*12+0.6*5;
     const _valCenterX=449+(_vw+4+_usdW)/2;
 
-    // ── 27. Row separator below headers  y=992 ───────────────
-    drawRule(doc,56,992,1124,0x20,0x49,0x37);
+    // ── 27. Row separator below headers  y=986 ───────────────
+    drawRule(doc,56,986,1124,0x20,0x49,0x37);
 
     // ── 28-32. Data rows ─────────────────────────────────────
     const ROW_YS=[1007,1060,1113,1166,1219];
@@ -1024,9 +1024,10 @@ async function generateReport(){
       const plus=multiInv||multiRec;
       const[inv,rec]=truncateNames(deal.investor,deal.recipient,plus);
       // Render FLOW: investor, drawn arrow, recipient (all Roboto SemiBold)
+      // Only show + when the name wasn't truncated (no ellipsis)
       doc.setFont('Roboto','semibold');doc.setFontSize(16);doc.setCharSpace(0.8);doc.setTextColor(0x11,0x1B,0x1E);
-      const invTxt=`${inv}${plus?'+':''} `;
-      const recTxt=` ${rec}${plus?'+':''}`;
+      const invTxt=`${inv}${plus&&!inv.endsWith('...')?'+':''} `;
+      const recTxt=` ${rec}${plus&&!rec.endsWith('...')?'+':''}`;
       const invW=doc.getStringUnitWidth(invTxt)*16;
       doc.text(invTxt,56,ry);
       // Draw arrow manually: shaft + two angled lines (arrowhead)
