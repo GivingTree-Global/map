@@ -669,6 +669,30 @@ function buildCol3(stats){
 // Rasterize SVG string to PNG data URL at 2x for sharpness
 function rasterizeSvgR(svgStr,w,h){return new Promise(res=>{const blob=new Blob([svgStr],{type:'image/svg+xml'});const burl=URL.createObjectURL(blob);const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=w*2;c.height=h*2;const ctx=c.getContext('2d');ctx.scale(2,2);ctx.drawImage(img,0,0,w,h);URL.revokeObjectURL(burl);res(c.toDataURL('image/png'))};img.onerror=()=>{URL.revokeObjectURL(burl);res('')};img.src=burl})}
 
+// Rasterize the GivingTree logo SVG using canvas cropping instead of viewBox manipulation.
+// The SVG renders at its natural 2000×2000. Logo content sits at SVG-coord y≈153–920 (of 1500).
+// We crop to that region at exact frame aspect ratio (1.951) to eliminate distortion.
+function rasterizeLogoSvg(svgStr){
+  return new Promise(res=>{
+    const blob=new Blob([svgStr],{type:'image/svg+xml'});
+    const burl=URL.createObjectURL(blob);
+    const img=new Image();
+    img.onload=()=>{
+      const iw=img.naturalWidth||2000,ih=img.naturalHeight||2000;
+      // Content starts at SVG y≈153/1500 of image height
+      const cropX=0,cropY=Math.round(ih*153/1500);
+      const cropW=iw,cropH=Math.round(cropW/1.951); // exact frame ratio 220.5/113
+      const outW=441,outH=226; // 2× frame for sharpness (220.5×113 pt)
+      const c=document.createElement('canvas');c.width=outW;c.height=outH;
+      const ctx=c.getContext('2d');
+      ctx.drawImage(img,cropX,cropY,cropW,cropH,0,0,outW,outH);
+      URL.revokeObjectURL(burl);res(c.toDataURL('image/png'));
+    };
+    img.onerror=()=>{URL.revokeObjectURL(burl);res('')};
+    img.src=burl;
+  });
+}
+
 // Draw a left→right gradient bar using thin rect slices (jsPDF has no native gradient)
 function drawGradBar(doc,x,y,w,h){
   const steps=30,sw=w/steps;
@@ -684,8 +708,8 @@ function drawRule(doc,x,y,w,r=0xBB,g=0xCB,bd=0xBD){doc.setDrawColor(r,g,bd);doc.
 
 // Wrapper for col1: renders text with hanging-indent bullets (• lines) and returns final Y.
 // Non-bullet paragraphs fall through to renderRich line-by-line.
-function renderCol1Bullets(doc,text,x,y,maxW,fontSize,lineH,maxY,colorR,colorG,colorB,indent){
-  indent=indent??20;
+function renderCol1Bullets(doc,text,x,y,maxW,fontSize,lineH,paraH,maxY,colorR,colorG,colorB,indent){
+  indent=indent??20;paraH=paraH??lineH;
   colorR=colorR??0;colorG=colorG??0;colorB=colorB??0;
   const paragraphs=text.split('\n');
   let curY=y;
@@ -721,15 +745,14 @@ function renderCol1Bullets(doc,text,x,y,maxW,fontSize,lineH,maxY,colorR,colorG,c
       }
       flush();curY+=lineH;
     } else {
-      renderRich(doc,para,x,curY,maxW,fontSize,lineH,maxY,colorR,colorG,colorB,'Roboto','light','medium');
-      // Estimate lines used
       if(para.trim()){
+        renderRich(doc,para,x,curY,maxW,fontSize,lineH,maxY,colorR,colorG,colorB,'Roboto','light','medium');
         doc.setFont('Roboto','light');doc.setFontSize(fontSize);
         const stripped=para.replace(/\*\*(.+?)\*\*/g,'$1');
         const wlines=doc.splitTextToSize(stripped,maxW);
         curY+=lineH*wlines.length;
       } else {
-        curY+=lineH;
+        curY+=paraH; // blank line = paragraph gap
       }
     }
   }
@@ -738,9 +761,10 @@ function renderCol1Bullets(doc,text,x,y,maxW,fontSize,lineH,maxY,colorR,colorG,c
 // Render text with inline **bold** markers, word-wrapping at maxWidth.
 // font sizes are in pt; lineH is vertical advance per line.
 // fontFamily/normalStyle/boldStyle let callers specify which font to use
-function renderRich(doc,text,x,y,maxW,fontSize,lineH,maxY,colorR,colorG,colorB,fontFamily,normalStyle,boldStyle){
+function renderRich(doc,text,x,y,maxW,fontSize,lineH,maxY,colorR,colorG,colorB,fontFamily,normalStyle,boldStyle,paraH){
   colorR=colorR??0x11;colorG=colorG??0x1b;colorB=colorB??0x1e;
   fontFamily=fontFamily??'Roboto';normalStyle=normalStyle??'light';boldStyle=boldStyle??'medium';
+  paraH=paraH??lineH; // advance for blank lines (paragraph breaks)
   doc.setFontSize(fontSize);
   const tokens=[];let rem=text;
   while(rem.length){
@@ -757,7 +781,7 @@ function renderRich(doc,text,x,y,maxW,fontSize,lineH,maxY,colorR,colorG,colorB,f
   let curX=x,curY=y,lineSegs=[];
   const flush=()=>{lineSegs.forEach(s=>{doc.setFont(fontFamily,s.b?boldStyle:normalStyle);doc.setTextColor(colorR,colorG,colorB);doc.text(s.t,s.x,curY)});lineSegs=[]};
   for(const tok of tokens){
-    if(tok.nl){flush();curY+=lineH;curX=x;if(curY>maxY)return;continue}
+    if(tok.nl){flush();curY+=(curX===x?paraH:lineH);curX=x;if(curY>maxY)return;continue}
     const words=tok.t.split(' ');
     for(let wi=0;wi<words.length;wi++){
       const w=words[wi];if(w==='')continue;
@@ -816,18 +840,10 @@ async function generateReport(){
     const stats=computeReportStats(fl);
 
     // ── SVGs ─────────────────────────────────────────────────
-    // viewBox "0 130 1500 770": captures T-mark icon (SVG y≈614–900) AND
-    // "GIVING TREE" wordmark text (SVG y≈230–514) side by side.
-    // Aspect ratio 1500:770=1.948:1 almost exactly matches the 220.5×113 logo frame.
-    const LOGO_SVG_CROPPED=LOGO_SVG
-      .replace('viewBox="0 0 1500 1499.999933"','viewBox="0 143 1500 790"')
-      .replace('width="2000"','width="1500"')
-      .replace('height="2000"','height="790"')
-      .replace('preserveAspectRatio="xMidYMid meet"','preserveAspectRatio="xMidYMin meet"');
     const LI_SVG=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 382 382"><path fill="#284C66" d="M347.445,0H34.555C15.471,0,0,15.471,0,34.555v312.889C0,366.529,15.471,382,34.555,382h312.889C366.529,382,382,366.529,382,347.444V34.555C382,15.471,366.529,0,347.445,0z M118.207,329.844c0,5.554-4.502,10.056-10.056,10.056H65.345c-5.554,0-10.056-4.502-10.056-10.056V150.403c0-5.554,4.502-10.056,10.056-10.056h42.806c5.554,0,10.056,4.502,10.056,10.056V329.844z M86.748,123.432c-22.459,0-40.666-18.207-40.666-40.666S64.289,42.1,86.748,42.1s40.666,18.207,40.666,40.666S109.208,123.432,86.748,123.432z M341.91,330.654c0,5.106-4.14,9.246-9.246,9.246H286.73c-5.106,0-9.246-4.14-9.246-9.246v-84.168c0-12.556,3.683-55.021-32.813-55.021c-28.309,0-34.051,29.066-35.204,42.11v97.079c0,5.106-4.139,9.246-9.246,9.246h-44.426c-5.106,0-9.246-4.14-9.246-9.246V149.593c0-5.106,4.14-9.246,9.246-9.246h44.426c5.106,0,9.246,4.14,9.246,9.246v15.655c10.497-15.753,26.097-27.912,59.312-27.912c73.552,0,73.131,68.716,73.131,106.472L341.91,330.654L341.91,330.654z"/></svg>`;
     const SS_SVG=`<svg xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" image-rendering="optimizeQuality" fill-rule="evenodd" clip-rule="evenodd" viewBox="0 0 448 511.471"><path fill="#FF681A" d="M0 0h448v62.804H0V0zm0 229.083h448v282.388L223.954 385.808 0 511.471V229.083zm0-114.542h448v62.804H0v-62.804z"/></svg>`;
     const[logoImg,liImg,ssImg]=await Promise.all([
-      rasterizeSvgR(LOGO_SVG_CROPPED,441,226),
+      rasterizeLogoSvg(LOGO_SVG),
       rasterizeSvgR(LI_SVG,150,150),
       rasterizeSvgR(SS_SVG,127,146)
     ]);
@@ -893,8 +909,8 @@ async function generateReport(){
     // Labels — OpenSauceOne SemiBold 15pt ls=0.75  halfway between value baseline and card bottom
     doc.setFont('OpenSauceOne','semibold');doc.setFontSize(15);
     doc.setCharSpace(0.75);
-    doc.text('In Capital (USD)',453.07,278,{align:'center'});
-    doc.text('Institutions',787.07,278,{align:'center'});
+    doc.text('In Capital (USD)',453.07,290,{align:'center'});
+    doc.text('Institutions',787.07,290,{align:'center'});
     doc.setCharSpace(0);
 
     // ── 10-12. BOTTOM STAT CARDS ─────────────────────────────
@@ -913,11 +929,11 @@ async function generateReport(){
       // Value — OpenSauceOne Medium 38pt ls=1.9  baseline at card midpoint (350+45.075=395)
       doc.setFont('OpenSauceOne','medium');doc.setFontSize(38);
       doc.setCharSpace(1.9);doc.setTextColor(0xFF,0xFA,0xEE);
-      doc.text(c.val,cx,395,{align:'center'});
+      doc.text(c.val,cx,400,{align:'center'});
       // Label — OpenSauceOne SemiBold 15pt ls=0.75  halfway between value baseline and card bottom
       doc.setFont('OpenSauceOne','semibold');doc.setFontSize(15);
       doc.setCharSpace(0.75);
-      doc.text(c.lbl,cx,422,{align:'center'});
+      doc.text(c.lbl,cx,427,{align:'center'});
       doc.setCharSpace(0);
     });
 
@@ -929,11 +945,11 @@ async function generateReport(){
     doc.setDrawColor(0xB8,0x4E,0x1A);doc.line(842,482,842,574.5);
 
     // Column text — Roboto Light 16pt ls=0.8 black; bold segments use Roboto Medium
-    const COL_LH=24,COL_MAXY=860;
+    const COL_LH=19,COL_PARA=12,COL_MAXY=860;
     doc.setCharSpace(0.8);
-    renderCol1Bullets(doc,buildCol1(stats),99,482,283,16,COL_LH,COL_MAXY,0,0,0,20);
-    renderRich(doc,buildCol2(stats),483,482,283,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium');
-    renderRich(doc,buildCol3(stats),861,482,283,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium');
+    renderCol1Bullets(doc,buildCol1(stats),99,482,283,16,COL_LH,COL_PARA,COL_MAXY,0,0,0,20);
+    renderRich(doc,buildCol2(stats),483,482,283,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium',COL_PARA);
+    renderRich(doc,buildCol3(stats),861,482,283,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium',COL_PARA);
     doc.setCharSpace(0);
 
     // ── 19. HIGHLIGHTS HEADER  y=898 ─────────────────────────
@@ -974,10 +990,17 @@ async function generateReport(){
       const plus=multiInv||multiRec;
       const inv=truncateName(deal.investor,plus);
       const rec=truncateName(deal.recipient,plus);
-      const arrow='➟';
-      doc.setFont('Roboto','semibold');doc.setFontSize(16);
-      doc.setCharSpace(0.8);doc.setTextColor(0x11,0x1B,0x1E);
-      doc.text(`${inv}${plus?'+':''} ${arrow} ${rec}${plus?'+':''}`,56,ry);
+      // Render FLOW as three segments: investor (Roboto SB), arrow ➟ (Poppins for glyph support), recipient (Roboto SB)
+      doc.setFont('Roboto','semibold');doc.setFontSize(16);doc.setCharSpace(0.8);doc.setTextColor(0x11,0x1B,0x1E);
+      const invTxt=`${inv}${plus?'+':''} `;
+      const recTxt=` ${rec}${plus?'+':''}`;
+      const invW=doc.getStringUnitWidth(invTxt)*16;
+      doc.text(invTxt,56,ry);
+      doc.setFont('Poppins','semibold');
+      const arrowW=doc.getStringUnitWidth('➟')*16;
+      doc.text('➟',56+invW,ry);
+      doc.setFont('Roboto','semibold');
+      doc.text(recTxt,56+invW+arrowW,ry);
       // VALUE — Roboto Regular 16pt off-black ls=0.8  x=449
       doc.setFont('Roboto','normal');
       doc.text(fmtRowValue(deal.amount),449,ry);
@@ -996,35 +1019,35 @@ async function generateReport(){
     });
 
     // ── 33. LOWER GRADIENT BAR  y=1285 ───────────────────────
-    drawGradBar(doc,0,1285,1240,8.76);
+    drawGradBar(doc,0,1259,1240,8.76);
 
-    // ── 34-35. TAGLINE — Playfair Regular 24pt ls=1.2 ────────
+    // ── 34-35. TAGLINE — Playfair Regular 24pt ls=1.2  (Figma top: 1282/1313) ──
     doc.setFont('Playfair','normal');doc.setFontSize(24);
     doc.setCharSpace(1.2);doc.setTextColor(0x20,0x49,0x37);
-    doc.text('Impact capital flows are out there.',620,1313,{align:'center'});
-    doc.text('Fragmented, dispersed, hard to see — until now.',620,1344,{align:'center'});
+    doc.text('Impact capital flows are out there.',620,1300,{align:'center'});
+    doc.text('Fragmented, dispersed, hard to see — until now.',620,1331,{align:'center'});
     doc.setCharSpace(0);
 
-    // ── 36. Thin rule  y=1390 ────────────────────────────────
-    drawRule(doc,0,1390,1240,0xBB,0xCB,0xBD);
+    // ── 36. Thin rule  y=1358 ────────────────────────────────
+    drawRule(doc,0,1358,1240,0xBB,0xCB,0xBD);
 
-    // ── 37. CTA headline — Roboto SemiBold 24pt #325230 ls=1.2 ─
+    // ── 37. CTA headline — Roboto SemiBold 24pt #325230 ls=1.2  (Figma top: 1394) ─
     doc.setFont('Roboto','semibold');doc.setFontSize(24);
     doc.setCharSpace(1.2);doc.setTextColor(0x32,0x52,0x30);
-    doc.text('Be the first to know when Beta membership opens.',620,1420,{align:'center'});
+    doc.text('Be the first to know when Beta membership opens.',620,1412,{align:'center'});
     doc.setCharSpace(0);
 
-    // ── 38. CTA subtext — Roboto Regular 20pt #111B1E ls=1 ───
+    // ── 38. CTA subtext — Roboto Regular 20pt #111B1E ls=1  (Figma top: 1425) ───
     doc.setFont('Roboto','normal');doc.setFontSize(20);
     doc.setCharSpace(1);doc.setTextColor(0x11,0x1B,0x1E);
-    doc.text('Early members lock in founding pricing for 12 months and get priority access to premium tools.',620,1452,{align:'center'});
+    doc.text('Early members lock in founding pricing for 12 months and get priority access to premium tools.',620,1440,{align:'center'});
     doc.setCharSpace(0);
 
-    // ── 39-40. SOCIAL ICONS  y=1492 ──────────────────────────
-    if(liImg){doc.addImage(liImg,'PNG',503,1492,74.83,73.95);doc.link(503,1492,74.83,73.95,{url:'https://www.linkedin.com/company/gvngtree'})}
-    if(ssImg){doc.addImage(ssImg,'PNG',645.6,1492.9,63.38,73.07);doc.link(645.6,1492.9,63.38,73.07,{url:'https://givingtree.substack.com/'})}
+    // ── 39-40. SOCIAL ICONS  y=1486 (Figma) ─────────────────
+    if(liImg){doc.addImage(liImg,'PNG',503,1486,74.83,73.95);doc.link(503,1486,74.83,73.95,{url:'https://www.linkedin.com/company/gvngtree'})}
+    if(ssImg){doc.addImage(ssImg,'PNG',645.6,1486.9,63.38,73.07);doc.link(645.6,1486.9,63.38,73.07,{url:'https://givingtree.substack.com/'})}
 
-    // ── 41. FOOTER LINKS — Roboto Regular 20pt ls=1  y=1600 ──
+    // ── 41. FOOTER LINKS — Roboto Regular 20pt ls=1  y≈1611 (Figma top: 1596) ──
     doc.setFont('Roboto','normal');doc.setFontSize(20);doc.setCharSpace(1);
     const fp=[
       {t:'Follow us on ',lnk:null},
@@ -1039,8 +1062,8 @@ async function generateReport(){
     let totalFW=0;const fws=fp.map(p=>{const w=doc.getStringUnitWidth(p.t)*20;totalFW+=w;return w});
     let fx=620-totalFW/2;
     fp.forEach((p,i)=>{
-      if(p.lnk){doc.setTextColor(0x32,0x52,0x30);doc.textWithLink(p.t,fx,1600,{url:p.lnk})}
-      else{doc.setTextColor(0x11,0x1B,0x1E);doc.text(p.t,fx,1600)}
+      if(p.lnk){doc.setTextColor(0x32,0x52,0x30);doc.textWithLink(p.t,fx,1611,{url:p.lnk})}
+      else{doc.setTextColor(0x11,0x1B,0x1E);doc.text(p.t,fx,1611)}
       fx+=fws[i];
     });
     doc.setCharSpace(0);
@@ -1050,7 +1073,7 @@ async function generateReport(){
     doc.setFont('Roboto','normal');doc.setFontSize(14);
     doc.setCharSpace(0.7);doc.setTextColor(0x11,0x1B,0x1E);
     const discLines=doc.splitTextToSize(disc,1184);
-    let dy=1658;discLines.forEach(l=>{doc.text(l,28,dy);dy+=18});
+    let dy=1668;discLines.forEach(l=>{doc.text(l,28,dy);dy+=18});
     doc.setCharSpace(0);
 
     // ── SAVE ─────────────────────────────────────────────────
