@@ -529,6 +529,14 @@ const _ABBR=[[/\bCapital\b/g,'Cap.'],[/\bInvestments\b/g,'Inv.'],[/\bInternation
 const _SHORT={'ABC Impact (Temasek-backed)':'ABC Impact','Vox Capital / TNC / Moore Fdn':'Vox Cap.+','Co-Capital / Din4mo / Oogway':'Co-Cap+','500 LatAm / IDB Lab':'500 LatAm','Eco Invest Brasil (Gov/IDB/FCDO)':'Eco Invest','SITAWI Finanças do Bem':'SITAWI','FSDAi (FSD Africa Investments)':'FSDAi'};
 function shortenName(n){if(_SHORT[n])return _SHORT[n];let s=n.replace(_LEGAL,'').trim();_ABBR.forEach(([p,r])=>{s=s.replace(p,r)});return s.trim()}
 function truncateName(n,withPlus){const lim=withPlus?20:22,dot=withPlus?18:20,s=shortenName(n);return s.length<=lim?s:s.slice(0,dot)+'...'}
+function truncateNames(inv,rec,withPlus){
+  const BASE=withPlus?20:22,DOT=BASE-2;
+  const si=shortenName(inv),sr=shortenName(rec);
+  const slack=(n)=>Math.max(0,BASE-n.length);
+  const ti=si.length<=BASE+slack(sr)?si:si.slice(0,DOT+Math.min(slack(sr),4))+'...';
+  const tr=sr.length<=BASE+slack(si)?sr:sr.slice(0,DOT+Math.min(slack(si),4))+'...';
+  return[ti,tr];
+}
 
 function computeReportStats(fl){
   const totalCapital=fl.reduce((s,d)=>s+(d.amount||0),0);
@@ -615,7 +623,7 @@ function buildCol1(stats){
   t+=joinList(cats.map(([k,v])=>`${v} ${k}`))+'.';
   const invSubs=Object.entries(dealSubtypes).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
   t+='\n\nDeals include:\n• **'+investments.length+' investments**';
-  if(invSubs.length)t+='—comprising '+joinList(invSubs.map(([k,v])=>`${v} ${k}`));
+  if(invSubs.length)t+=' comprising '+joinList(invSubs.map(([k,v])=>`${v} ${k}`));
   if(fundraises.length)t+='\n• **'+fundraises.length+' rounds of capital raised** by private companies';
   return t;
 }
@@ -669,24 +677,36 @@ function buildCol3(stats){
 // Rasterize SVG string to PNG data URL at 2x for sharpness
 function rasterizeSvgR(svgStr,w,h){return new Promise(res=>{const blob=new Blob([svgStr],{type:'image/svg+xml'});const burl=URL.createObjectURL(blob);const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=w*2;c.height=h*2;const ctx=c.getContext('2d');ctx.scale(2,2);ctx.drawImage(img,0,0,w,h);URL.revokeObjectURL(burl);res(c.toDataURL('image/png'))};img.onerror=()=>{URL.revokeObjectURL(burl);res('')};img.src=burl})}
 
-// Rasterize the GivingTree logo SVG using canvas cropping instead of viewBox manipulation.
-// The SVG renders at its natural 2000×2000. Logo content sits at SVG-coord y≈153–920 (of 1500).
-// We crop to that region at exact frame aspect ratio (1.951) to eliminate distortion.
+// Two-pass logo rasterizer:
+// Pass 1 — render SVG into an explicit 3000×3000 canvas (forces browser to use that size,
+//           bypassing naturalWidth uncertainty with complex SVGs).
+// Pass 2 — crop the logo region (SVG coords 0,153 → 1500,920 out of 1500-unit space)
+//           and scale to output size.
 function rasterizeLogoSvg(svgStr){
   return new Promise(res=>{
     const blob=new Blob([svgStr],{type:'image/svg+xml'});
     const burl=URL.createObjectURL(blob);
     const img=new Image();
     img.onload=()=>{
-      const iw=img.naturalWidth||2000,ih=img.naturalHeight||2000;
-      // Content starts at SVG y≈153/1500 of image height
-      const cropX=0,cropY=Math.round(ih*153/1500);
-      const cropW=iw,cropH=Math.round(cropW/1.951); // exact frame ratio 220.5/113
-      const outW=441,outH=226; // 2× frame for sharpness (220.5×113 pt)
-      const c=document.createElement('canvas');c.width=outW;c.height=outH;
-      const ctx=c.getContext('2d');
-      ctx.drawImage(img,cropX,cropY,cropW,cropH,0,0,outW,outH);
-      URL.revokeObjectURL(burl);res(c.toDataURL('image/png'));
+      // Pass 1: render at 3000×3000
+      const FULL=3000;
+      const c1=document.createElement('canvas');c1.width=FULL;c1.height=FULL;
+      const ctx1=c1.getContext('2d');
+      ctx1.drawImage(img,0,0,FULL,FULL);
+      URL.revokeObjectURL(burl);
+      // Pass 2: crop logo region
+      // SVG coord space is 1500×1500. Logo content: y=153 to y≈920, full width.
+      // cropY in canvas pixels: 153/1500 * FULL
+      // cropH chosen for frame ratio 220.5/113 ≈ 1.951
+      const cropX=0;
+      const cropY=Math.round(FULL*153/1500);
+      const cropW=FULL;
+      const cropH=Math.round(cropW/1.951);
+      const outW=441,outH=226; // 2× output for sharpness
+      const c2=document.createElement('canvas');c2.width=outW;c2.height=outH;
+      const ctx2=c2.getContext('2d');
+      ctx2.drawImage(c1,cropX,cropY,cropW,cropH,0,0,outW,outH);
+      res(c2.toDataURL('image/png'));
     };
     img.onerror=()=>{URL.revokeObjectURL(burl);res('')};
     img.src=burl;
@@ -721,7 +741,7 @@ function renderCol1Bullets(doc,text,x,y,maxW,fontSize,lineH,paraH,maxY,colorR,co
       // Draw bullet at x, text starts at x+indent
       doc.setFont('Roboto','light');doc.setFontSize(fontSize);
       doc.setTextColor(colorR,colorG,colorB);
-      doc.text('•',x+2,curY);
+      doc.text('•',x+5,curY);
       // Word-wrap the bullet content at x+indent, width maxW-indent
       // Reuse token-based approach inline
       const tokens=[];let rem=content;
@@ -743,7 +763,7 @@ function renderCol1Bullets(doc,text,x,y,maxW,fontSize,lineH,paraH,maxY,colorR,co
           lineSegs.push({t:ws,b:tok.b,x:cx});cx+=ww;
         }
       }
-      flush();curY+=lineH;
+      flush();curY+=paraH;
     } else {
       if(para.trim()){
         renderRich(doc,para,x,curY,maxW,fontSize,lineH,maxY,colorR,colorG,colorB,'Roboto','light','medium');
@@ -904,8 +924,8 @@ async function generateReport(){
     // Values — OpenSauceOne Medium 38pt ls=1.9  baseline at card midpoint (191+60.28=251.28)
     doc.setFont('OpenSauceOne','medium');doc.setFontSize(38);
     doc.setCharSpace(1.9);doc.setTextColor(0x11,0x1B,0x1E);
-    doc.text(capStr,453.07,251,{align:'center'});
-    doc.text(instStr,787.07,251,{align:'center'});
+    doc.text(capStr,453.07,256,{align:'center'});
+    doc.text(instStr,787.07,256,{align:'center'});
     // Labels — OpenSauceOne SemiBold 15pt ls=0.75  halfway between value baseline and card bottom
     doc.setFont('OpenSauceOne','semibold');doc.setFontSize(15);
     doc.setCharSpace(0.75);
@@ -969,10 +989,12 @@ async function generateReport(){
     doc.setFont('Roboto','semibold');doc.setFontSize(18);
     doc.setCharSpace(0.9);doc.setTextColor(0x11,0x1B,0x1E);
     HCOLS.forEach(h=>doc.text(h.t,h.x,947));
-    // "(USD)" subscript — OpenSauceOne SemiBold 12pt #7A8380 ls=0.6  x=463 y=968
+    // "(USD)" inline with VALUE — OpenSauceOne SemiBold 12pt #7A8380 ls=0.6
+    // x offset: VALUE is at 449, width ≈ doc.getStringUnitWidth('VALUE')*18 + kerning
+    {const vw=doc.getStringUnitWidth('VALUE')*18+0.9*5;
     doc.setFont('OpenSauceOne','semibold');doc.setFontSize(12);
     doc.setCharSpace(0.6);doc.setTextColor(0x7A,0x83,0x80);
-    doc.text('(USD)',463,968);
+    doc.text('(USD)',449+vw+4,947);}
     doc.setCharSpace(0);
 
     // ── 27. Row separator below headers  y=985 ───────────────
@@ -988,19 +1010,21 @@ async function generateReport(){
       const multiInv=deal.investor&&deal.investor.includes('/');
       const multiRec=deal.recipient&&deal.recipient.includes('/');
       const plus=multiInv||multiRec;
-      const inv=truncateName(deal.investor,plus);
-      const rec=truncateName(deal.recipient,plus);
-      // Render FLOW as three segments: investor (Roboto SB), arrow ➟ (Poppins for glyph support), recipient (Roboto SB)
+      const[inv,rec]=truncateNames(deal.investor,deal.recipient,plus);
+      // Render FLOW: investor, drawn arrow, recipient (all Roboto SemiBold)
       doc.setFont('Roboto','semibold');doc.setFontSize(16);doc.setCharSpace(0.8);doc.setTextColor(0x11,0x1B,0x1E);
       const invTxt=`${inv}${plus?'+':''} `;
       const recTxt=` ${rec}${plus?'+':''}`;
       const invW=doc.getStringUnitWidth(invTxt)*16;
       doc.text(invTxt,56,ry);
-      doc.setFont('Poppins','semibold');
-      const arrowW=doc.getStringUnitWidth('➟')*16;
-      doc.text('➟',56+invW,ry);
+      // Draw arrow manually: shaft + two angled lines (arrowhead)
+      const ax=56+invW,ay=ry-4,aw=16,ah=4;
+      doc.setDrawColor(0x11,0x1B,0x1E);doc.setLineWidth(1.2);
+      doc.line(ax,ay,ax+aw,ay);
+      doc.line(ax+aw,ay,ax+aw-ah,ay-ah);
+      doc.line(ax+aw,ay,ax+aw-ah,ay+ah);
       doc.setFont('Roboto','semibold');
-      doc.text(recTxt,56+invW+arrowW,ry);
+      doc.text(recTxt,56+invW+aw+2,ry);
       // VALUE — Roboto Regular 16pt off-black ls=0.8  x=449
       doc.setFont('Roboto','normal');
       doc.text(fmtRowValue(deal.amount),449,ry);
@@ -1024,8 +1048,8 @@ async function generateReport(){
     // ── 34-35. TAGLINE — Playfair Regular 24pt ls=1.2  (Figma top: 1282/1313) ──
     doc.setFont('Playfair','normal');doc.setFontSize(24);
     doc.setCharSpace(1.2);doc.setTextColor(0x20,0x49,0x37);
-    doc.text('Impact capital flows are out there.',620,1300,{align:'center'});
-    doc.text('Fragmented, dispersed, hard to see — until now.',620,1331,{align:'center'});
+    doc.text('Impact capital flows are out there.',620,1305,{align:'center'});
+    doc.text('Fragmented, dispersed, hard to see — until now.',620,1336,{align:'center'});
     doc.setCharSpace(0);
 
     // ── 36. Thin rule  y=1358 ────────────────────────────────
