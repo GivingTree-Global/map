@@ -749,9 +749,9 @@ function renderCol1Bullets(doc,text,x,y,maxW,fontSize,lineH,paraH,maxY,colorR,co
       // Draw bullet at x, text starts at x+indent
       doc.setFont('Roboto','light');doc.setFontSize(fontSize);
       doc.setTextColor(colorR,colorG,colorB);
+      curY+=paraH; // 12pt gap above each bullet
       doc.text('•',x+5,curY);
       // Word-wrap the bullet content at x+indent, width maxW-indent
-      // Reuse token-based approach inline
       const tokens=[];let rem=content;
       while(rem.length){
         const bm=rem.match(/^\*\*(.+?)\*\*/);
@@ -764,14 +764,16 @@ function renderCol1Bullets(doc,text,x,y,maxW,fontSize,lineH,paraH,maxY,colorR,co
       for(const tok of tokens){
         const words=tok.t.split(' ');
         for(let wi=0;wi<words.length;wi++){
-          const w=words[wi];if(w==='')continue;
+          const w=words[wi];
+          // preserve inter-token spaces (leading empty string from split)
+          if(w===''){cx+=meas(' ',tok.b);continue;}
           const ws=w+(wi<words.length-1?' ':'');
           const ww=meas(ws,tok.b);
           if(cx+ww>x+maxW+2&&cx>x+indent){flush();curY+=lineH;cx=x+indent;if(curY>maxY)return}
           lineSegs.push({t:ws,b:tok.b,x:cx});cx+=ww;
         }
       }
-      flush();curY+=paraH;
+      flush();curY+=lineH;
     } else {
       if(para.trim()){
         renderRich(doc,para,x,curY,maxW,fontSize,lineH,maxY,colorR,colorG,colorB,'Roboto','light','medium');
@@ -984,11 +986,11 @@ async function generateReport(){
     // ── 19. HIGHLIGHTS HEADER  y=898 ─────────────────────────
     doc.setFont('Roboto','semibold');doc.setFontSize(22);
     doc.setCharSpace(1.1);doc.setTextColor(0x20,0x49,0x37);
-    doc.text('HIGHLIGHTS',56,906);
+    doc.text('HIGHLIGHTS',56,916);
     doc.setCharSpace(0);
 
-    // ── 20. Table header separator  y=933 ────────────────────
-    drawRule(doc,56,933,1124,0x20,0x49,0x37);
+    // ── 20. Table header separator  y=940 ────────────────────
+    drawRule(doc,56,940,1124,0x20,0x49,0x37);
 
     // ── 21-26. Column headers  y=963 Roboto SemiBold 18pt ls=0.9 off-black ──
     const HCOLS=[
@@ -997,60 +999,63 @@ async function generateReport(){
     ];
     doc.setFont('Roboto','semibold');doc.setFontSize(18);
     doc.setCharSpace(0.9);doc.setTextColor(0x11,0x1B,0x1E);
-    HCOLS.forEach(h=>doc.text(h.t,h.x,968));
+    HCOLS.forEach(h=>doc.text(h.t,h.x,967));
     // "(USD)" inline with VALUE — OpenSauceOne SemiBold 12pt #7A8380 ls=0.6
     doc.setFont('Roboto','semibold');doc.setFontSize(18);doc.setCharSpace(0.9);
     const _vw=doc.getStringUnitWidth('VALUE')*18+0.9*5;
     doc.setFont('OpenSauceOne','semibold');doc.setFontSize(12);
     doc.setCharSpace(0.6);doc.setTextColor(0x7A,0x83,0x80);
-    doc.text('(USD)',449+_vw+4,968);
+    doc.text('(USD)',449+_vw+4,967);
     doc.setCharSpace(0);
     // Compute center of VALUE(USD) header block for data alignment
     const _usdW=doc.getStringUnitWidth('(USD)')*12+0.6*5;
     const _valCenterX=449+(_vw+4+_usdW)/2;
 
-    // ── 27. Row separator below headers  y=986 ───────────────
-    drawRule(doc,56,986,1124,0x20,0x49,0x37);
+    // ── 27. Row separator below headers  y=993 ───────────────
+    drawRule(doc,56,993,1124,0x20,0x49,0x37);
 
-    // ── 28-32. Data rows ─────────────────────────────────────
-    const ROW_YS=[1007,1060,1113,1166,1219];
-    const ROW_LINES=[1044,1097,1150,1203];
+    // ── 28-32. Data rows (two-line capital flow) ─────────────
+    // Each row: line 1 = investor (max 50 chars), line 2 = arrow + recipient (max 47 chars)
+    // Row height = 50pt; other columns vertically centred between the two lines
+    const ROW_YS=[1008,1058,1108,1158,1208];
+    const ROW_LINES=[1048,1098,1148,1198];
+    const _trunc=(n,max)=>{const s=shortenName(n);return s.length<=max?s:s.slice(0,max-3)+'...'};
     stats.highlightRows.forEach((deal,idx)=>{
       if(idx>=5)return;
-      const ry=ROW_YS[idx]+14;
-      // FLOW — Roboto SemiBold 16pt off-black ls=0.8
+      const ry=ROW_YS[idx]+12;   // line 1 baseline
+      const ry2=ry+19;            // line 2 baseline (arrow + recipient)
+      const rym=ry+9;             // vertical midpoint for other columns
+
+      // CAPITAL FLOW line 1 — investor name
       const multiInv=deal.investor&&deal.investor.includes('/');
       const multiRec=deal.recipient&&deal.recipient.includes('/');
-      const plus=multiInv||multiRec;
-      const[inv,rec]=truncateNames(deal.investor,deal.recipient,plus);
-      // Render FLOW: investor, drawn arrow, recipient (all Roboto SemiBold)
-      // Only show + when the name wasn't truncated (no ellipsis)
+      const inv=_trunc(deal.investor,50);
+      const rec=_trunc(deal.recipient,47);
       doc.setFont('Roboto','semibold');doc.setFontSize(16);doc.setCharSpace(0.8);doc.setTextColor(0x11,0x1B,0x1E);
-      const invTxt=`${inv}${plus&&!inv.endsWith('...')?'+':''} `;
-      const recTxt=` ${rec}${plus&&!rec.endsWith('...')?'+':''}`;
-      const invW=doc.getStringUnitWidth(invTxt)*16;
-      doc.text(invTxt,56,ry);
-      // Draw arrow manually: shaft + two angled lines (arrowhead)
-      const ax=56+invW,ay=ry-4,aw=16,ah=4;
+      doc.text(`${inv}${multiInv&&!inv.endsWith('...')?'+':''}`,56,ry);
+
+      // CAPITAL FLOW line 2 — arrow then recipient
+      const aw=16,ah=4;
       doc.setDrawColor(0x11,0x1B,0x1E);doc.setLineWidth(1.2);
-      doc.line(ax,ay,ax+aw,ay);
-      doc.line(ax+aw,ay,ax+aw-ah,ay-ah);
-      doc.line(ax+aw,ay,ax+aw-ah,ay+ah);
-      doc.setFont('Roboto','semibold');
-      doc.text(recTxt,56+invW+aw+2,ry);
-      // VALUE — centered under VALUE (USD) header
+      doc.line(56,ry2-4,56+aw,ry2-4);
+      doc.line(56+aw,ry2-4,56+aw-ah,ry2-4-ah);
+      doc.line(56+aw,ry2-4,56+aw-ah,ry2-4+ah);
+      doc.setFont('Roboto','semibold');doc.setFontSize(16);doc.setCharSpace(0.8);
+      doc.text(`${rec}${multiRec&&!rec.endsWith('...')?'+':''}`,56+aw+6,ry2);
+
+      // VALUE — centred under VALUE (USD) header, vertically mid
       doc.setFont('Roboto','normal');
-      doc.text(fmtRowValue(deal.amount),_valCenterX,ry,{align:'center'});
-      // METRO AREA — Roboto Regular 16pt off-black ls=0.8  x=575
+      doc.text(fmtRowValue(deal.amount),_valCenterX,rym,{align:'center'});
+      // METRO AREA
       const iso=ISO3[deal.country]||deal.country.slice(0,3).toUpperCase();
       let city=deal.city;if(city.length>20)city=city.slice(0,18)+'...';
       doc.setTextColor(0x11,0x1B,0x1E);
-      doc.text(`${city}, ${iso}`,575,ry);
-      // THEME — off-black
+      doc.text(`${city}, ${iso}`,575,rym);
+      // THEME
       let theme=SL[deal.sector]||deal.sector;if(theme.length>18)theme=theme.slice(0,16)+'...';
-      doc.text(theme,809,ry);
-      // ACTIVITY — off-black
-      doc.text(deal.dealType,1027,ry);
+      doc.text(theme,809,rym);
+      // ACTIVITY
+      doc.text(deal.dealType,1027,rym);
       doc.setCharSpace(0);
       if(idx<4)drawRule(doc,56,ROW_LINES[idx],1124,0xCC,0xD8,0xD0);
     });
@@ -1059,7 +1064,7 @@ async function generateReport(){
     drawGradBar(doc,0,1259,1240,8.76);
 
     // ── 34-35. TAGLINE — Playfair Regular 24pt ls=1.2  (Figma top: 1282/1313) ──
-    doc.setFont('Playfair','normal');doc.setFontSize(24);
+    doc.setFont('Playfair','semibold');doc.setFontSize(24);
     doc.setCharSpace(1.2);doc.setTextColor(0x20,0x49,0x37);
     doc.text('Impact capital flows are out there.',620,1305,{align:'center'});
     doc.text('Fragmented, dispersed, hard to see — until now.',620,1336,{align:'center'});
@@ -1077,12 +1082,12 @@ async function generateReport(){
     // ── 38. CTA subtext — Roboto Regular 20pt #111B1E ls=1  (Figma top: 1425) ───
     doc.setFont('Roboto','normal');doc.setFontSize(20);
     doc.setCharSpace(1);doc.setTextColor(0x11,0x1B,0x1E);
-    doc.text('Early members lock in founding pricing for 12 months and get priority access to premium tools.',620,1440,{align:'center'});
+    doc.text('Early members lock in founding pricing for 12 months and get priority access to premium tools.',620,1450,{align:'center'});
     doc.setCharSpace(0);
 
     // ── 39-40. SOCIAL ICONS  y=1486 (Figma) ─────────────────
-    if(liImg){doc.addImage(liImg,'PNG',503,1486,74.83,73.95);doc.link(503,1486,74.83,73.95,{url:'https://www.linkedin.com/company/gvngtree'})}
-    if(ssImg){doc.addImage(ssImg,'PNG',645.6,1486.9,63.38,73.07);doc.link(645.6,1486.9,63.38,73.07,{url:'https://givingtree.substack.com/'})}
+    if(liImg){doc.addImage(liImg,'PNG',503,1500,74.83,73.95);doc.link(503,1500,74.83,73.95,{url:'https://www.linkedin.com/company/gvngtree'})}
+    if(ssImg){doc.addImage(ssImg,'PNG',645.6,1500.9,63.38,73.07);doc.link(645.6,1500.9,63.38,73.07,{url:'https://givingtree.substack.com/'})}
 
     // ── 41. FOOTER LINKS — Roboto Regular 20pt ls=1  y≈1611 (Figma top: 1596) ──
     doc.setFont('Roboto','normal');doc.setFontSize(20);doc.setCharSpace(1);
@@ -1099,8 +1104,8 @@ async function generateReport(){
     let totalFW=0;const fws=fp.map(p=>{const w=doc.getStringUnitWidth(p.t)*20;totalFW+=w;return w});
     let fx=620-totalFW/2;
     fp.forEach((p,i)=>{
-      if(p.lnk){doc.setTextColor(0x32,0x52,0x30);doc.textWithLink(p.t,fx,1611,{url:p.lnk})}
-      else{doc.setTextColor(0x11,0x1B,0x1E);doc.text(p.t,fx,1611)}
+      if(p.lnk){doc.setTextColor(0x32,0x52,0x30);doc.textWithLink(p.t,fx,1625,{url:p.lnk})}
+      else{doc.setTextColor(0x11,0x1B,0x1E);doc.text(p.t,fx,1625)}
       fx+=fws[i];
     });
     doc.setCharSpace(0);
