@@ -530,11 +530,19 @@ const _SHORT={'ABC Impact (Temasek-backed)':'ABC Impact','Vox Capital / TNC / Mo
 function shortenName(n){if(_SHORT[n])return _SHORT[n];let s=n.replace(_LEGAL,'').trim();_ABBR.forEach(([p,r])=>{s=s.replace(p,r)});return s.trim()}
 function truncateName(n,withPlus){const lim=withPlus?20:22,dot=withPlus?18:20,s=shortenName(n);return s.length<=lim?s:s.slice(0,dot)+'...'}
 function truncateNames(inv,rec,withPlus){
-  const BASE=withPlus?20:22,DOT=BASE-2;
+  // Individual base limit, slack-sharing, then a hard combined cap of 44 chars
+  // (calibrated to "Generate Cap. → Sustainable infrastructure fund")
+  const BASE=withPlus?18:20,DOT=BASE-2,COMBINED=44;
   const si=shortenName(inv),sr=shortenName(rec);
   const slack=(n)=>Math.max(0,BASE-n.length);
-  const ti=si.length<=BASE+slack(sr)?si:si.slice(0,DOT+Math.min(slack(sr),4))+'...';
-  const tr=sr.length<=BASE+slack(si)?sr:sr.slice(0,DOT+Math.min(slack(si),4))+'...';
+  let ti=si.length<=BASE+slack(sr)?si:si.slice(0,DOT+Math.min(slack(sr),4))+'...';
+  let tr=sr.length<=BASE+slack(si)?sr:sr.slice(0,DOT+Math.min(slack(si),4))+'...';
+  // Hard combined cap: if still too long, trim the longer of the two
+  if(ti.length+tr.length>COMBINED){
+    const over=ti.length+tr.length-COMBINED;
+    if(ti.length>=tr.length){ti=ti.slice(0,Math.max(ti.length-over-3,8))+'...';}
+    else{tr=tr.slice(0,Math.max(tr.length-over-3,8))+'...';}
+  }
   return[ti,tr];
 }
 
@@ -979,31 +987,34 @@ async function generateReport(){
     doc.text('HIGHLIGHTS',56,898);
     doc.setCharSpace(0);
 
-    // ── 20. Table header separator  y=935 ────────────────────
-    drawRule(doc,56,935,1124,0x20,0x49,0x37);
+    // ── 20. Table header separator  y=930 ────────────────────
+    drawRule(doc,56,930,1124,0x20,0x49,0x37);
 
-    // ── 21-26. Column headers  y=947 Roboto SemiBold 18pt ls=0.9 off-black ──
+    // ── 21-26. Column headers  y=963 Roboto SemiBold 18pt ls=0.9 off-black ──
     const HCOLS=[
       {t:'CAPITAL FLOW',x:56},{t:'VALUE',x:449},{t:'METRO AREA',x:575},
       {t:'THEME',x:809},{t:'ACTIVITY',x:1027}
     ];
     doc.setFont('Roboto','semibold');doc.setFontSize(18);
     doc.setCharSpace(0.9);doc.setTextColor(0x11,0x1B,0x1E);
-    HCOLS.forEach(h=>doc.text(h.t,h.x,947));
+    HCOLS.forEach(h=>doc.text(h.t,h.x,963));
     // "(USD)" inline with VALUE — OpenSauceOne SemiBold 12pt #7A8380 ls=0.6
-    // x offset: VALUE is at 449, width ≈ doc.getStringUnitWidth('VALUE')*18 + kerning
-    {const vw=doc.getStringUnitWidth('VALUE')*18+0.9*5;
+    doc.setFont('Roboto','semibold');doc.setFontSize(18);doc.setCharSpace(0.9);
+    const _vw=doc.getStringUnitWidth('VALUE')*18+0.9*5;
     doc.setFont('OpenSauceOne','semibold');doc.setFontSize(12);
     doc.setCharSpace(0.6);doc.setTextColor(0x7A,0x83,0x80);
-    doc.text('(USD)',449+vw+4,947);}
+    doc.text('(USD)',449+_vw+4,963);
     doc.setCharSpace(0);
+    // Compute center of VALUE(USD) header block for data alignment
+    const _usdW=doc.getStringUnitWidth('(USD)')*12+0.6*5;
+    const _valCenterX=449+(_vw+4+_usdW)/2;
 
-    // ── 27. Row separator below headers  y=985 ───────────────
-    drawRule(doc,56,985,1124,0x20,0x49,0x37);
+    // ── 27. Row separator below headers  y=992 ───────────────
+    drawRule(doc,56,992,1124,0x20,0x49,0x37);
 
     // ── 28-32. Data rows ─────────────────────────────────────
-    const ROW_YS=[1000,1053,1106,1159,1212];
-    const ROW_LINES=[1037,1090,1143,1196];
+    const ROW_YS=[1007,1060,1113,1166,1219];
+    const ROW_LINES=[1044,1097,1150,1203];
     stats.highlightRows.forEach((deal,idx)=>{
       if(idx>=5)return;
       const ry=ROW_YS[idx]+14;
@@ -1026,9 +1037,9 @@ async function generateReport(){
       doc.line(ax+aw,ay,ax+aw-ah,ay+ah);
       doc.setFont('Roboto','semibold');
       doc.text(recTxt,56+invW+aw+2,ry);
-      // VALUE — Roboto Regular 16pt off-black ls=0.8  x=449
+      // VALUE — centered under VALUE (USD) header
       doc.setFont('Roboto','normal');
-      doc.text(fmtRowValue(deal.amount),449,ry);
+      doc.text(fmtRowValue(deal.amount),_valCenterX,ry,{align:'center'});
       // METRO AREA — Roboto Regular 16pt off-black ls=0.8  x=575
       const iso=ISO3[deal.country]||deal.country.slice(0,3).toUpperCase();
       let city=deal.city;if(city.length>20)city=city.slice(0,18)+'...';
