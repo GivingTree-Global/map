@@ -864,8 +864,9 @@ async function generateReport(){
     _rf('RobotoMed.ttf',     'Roboto','medium',          GTFONT_ROBOTO_MEDIUM);
     _rf('RobotoSB.ttf',      'Roboto','semibold',        GTFONT_ROBOTO_SEMIBOLD);
     _rf('RobotoSBI.ttf',     'Roboto','semibolditalic',  GTFONT_ROBOTO_SEMIBOLDITALIC);
-    _rf('OSOneMed.ttf',      'OpenSauceOne','medium',    GTFONT_OPENSAUCE_MEDIUM);
-    _rf('OSOneSB.ttf',       'OpenSauceOne','semibold',  GTFONT_OPENSAUCE_SEMIBOLD);
+    _rf('OSOneMed.ttf',      'OpenSauceOne','medium',      GTFONT_OPENSAUCE_MEDIUM);
+    _rf('OSOneSB.ttf',       'OpenSauceOne','semibold',   GTFONT_OPENSAUCE_SEMIBOLD);
+    _rf('OSOneMedIt.ttf',    'OpenSauceOne','mediumitalic',GTFONT_OPENSAUCE_MEDIUMITALIC);
 
     const stats=computeReportStats(fl);
 
@@ -875,7 +876,7 @@ async function generateReport(){
     const fetchPng=(url)=>fetch(url).then(r=>r.blob()).then(b=>new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>res('');fr.readAsDataURL(b)})).catch(()=>'');
     const[logoImg,liImg,ssImg]=await Promise.all([
       fetchPng('logo.png'),
-      rasterizeSvgR(LI_SVG,150,150),
+      fetchPng('linkedin.png'),
       rasterizeSvgR(SS_SVG,127,146)
     ]);
 
@@ -986,47 +987,51 @@ async function generateReport(){
     // ── 19. HIGHLIGHTS HEADER  y=898 ─────────────────────────
     doc.setFont('Roboto','semibold');doc.setFontSize(22);
     doc.setCharSpace(1.1);doc.setTextColor(0x20,0x49,0x37);
-    doc.text('HIGHLIGHTS',56,916);
+    doc.text('HIGHLIGHTS',56,898);
     doc.setCharSpace(0);
 
-    // ── 20. Table header separator  y=940 ────────────────────
-    drawRule(doc,56,940,1124,0x20,0x49,0x37);
+    // ── 20. Table header top rule  y=935 — off-black ─────────
+    drawRule(doc,56,935,1124,0x11,0x1B,0x1E);
 
-    // ── 21-26. Column headers  y=963 Roboto SemiBold 18pt ls=0.9 off-black ──
+    // ── 21-26. Column headers  y=941 Roboto SemiBold 18pt ls=0.9 ──
     const HCOLS=[
-      {t:'CAPITAL FLOW',x:56},{t:'VALUE',x:449},{t:'METRO AREA',x:575},
+      {t:'DEAL FLOW',x:56},{t:'VALUE',x:449},{t:'METRO AREA',x:575},
       {t:'THEME',x:809},{t:'ACTIVITY',x:1027}
     ];
     doc.setFont('Roboto','semibold');doc.setFontSize(18);
     doc.setCharSpace(0.9);doc.setTextColor(0x11,0x1B,0x1E);
-    HCOLS.forEach(h=>doc.text(h.t,h.x,967));
-    // "(USD)" inline with VALUE — OpenSauceOne SemiBold 12pt #7A8380 ls=0.6
+    HCOLS.forEach(h=>doc.text(h.t,h.x,941));
+    // "(USD)" — OpenSauceOne SemiBold 12pt #7A8380 ls=0.6  y=948
     doc.setFont('Roboto','semibold');doc.setFontSize(18);doc.setCharSpace(0.9);
     const _vw=doc.getStringUnitWidth('VALUE')*18+0.9*5;
     doc.setFont('OpenSauceOne','semibold');doc.setFontSize(12);
     doc.setCharSpace(0.6);doc.setTextColor(0x7A,0x83,0x80);
-    doc.text('(USD)',449+_vw+4,967);
+    doc.text('(USD)',449+_vw+4,948);
     doc.setCharSpace(0);
-    // Compute center of VALUE(USD) header block for data alignment
+    // Compute centre of VALUE(USD) header block for data alignment
     const _usdW=doc.getStringUnitWidth('(USD)')*12+0.6*5;
     const _valCenterX=449+(_vw+4+_usdW)/2;
 
-    // ── 27. Row separator below headers  y=993 ───────────────
-    drawRule(doc,56,993,1124,0x20,0x49,0x37);
+    // ── 27. Table header bottom rule  y=971 — off-black ──────
+    drawRule(doc,56,971,1124,0x11,0x1B,0x1E);
 
-    // ── 28-32. Data rows (two-line capital flow) ─────────────
-    // Each row: line 1 = investor (max 50 chars), line 2 = arrow + recipient (max 47 chars)
-    // Row height = 50pt; other columns vertically centred between the two lines
-    const ROW_YS=[1008,1058,1108,1158,1208];
-    const ROW_LINES=[1048,1098,1148,1198];
+    // ── 28-32. Data rows — exact Y coords from Figma ─────────
+    // Investor baselines: 978,1033,1088,1143,1198
+    // Recipient baselines: 1000,1055,1110,1165,1220
+    // Other-col baselines: 987,1043,1098,1153,1208
+    // Row separators (light): 1026,1081,1136,1191
+    const INV_YS =[978,1033,1088,1143,1198];
+    const REC_YS =[1000,1055,1110,1165,1220];
+    const MID_YS =[987,1043,1098,1153,1208];
+    const ROW_LINES=[1026,1081,1136,1191];
     const _trunc=(n,max)=>{const s=shortenName(n);return s.length<=max?s:s.slice(0,max-3)+'...'};
     stats.highlightRows.forEach((deal,idx)=>{
       if(idx>=5)return;
-      const ry=ROW_YS[idx]+12;   // line 1 baseline
-      const ry2=ry+19;            // line 2 baseline (arrow + recipient)
-      const rym=ry+9;             // vertical midpoint for other columns
+      const ry =INV_YS[idx];
+      const ry2=REC_YS[idx];
+      const rym=MID_YS[idx];
 
-      // CAPITAL FLOW line 1 — investor name
+      // DEAL FLOW line 1 — investor name
       const multiInv=deal.investor&&deal.investor.includes('/');
       const multiRec=deal.recipient&&deal.recipient.includes('/');
       const inv=_trunc(deal.investor,50);
@@ -1034,17 +1039,18 @@ async function generateReport(){
       doc.setFont('Roboto','semibold');doc.setFontSize(16);doc.setCharSpace(0.8);doc.setTextColor(0x11,0x1B,0x1E);
       doc.text(`${inv}${multiInv&&!inv.endsWith('...')?'+':''}`,56,ry);
 
-      // CAPITAL FLOW line 2 — arrow then recipient
-      const aw=16,ah=4;
-      doc.setDrawColor(0x11,0x1B,0x1E);doc.setLineWidth(1.2);
-      doc.line(56,ry2-4,56+aw,ry2-4);
-      doc.line(56+aw,ry2-4,56+aw-ah,ry2-4-ah);
-      doc.line(56+aw,ry2-4,56+aw-ah,ry2-4+ah);
+      // DEAL FLOW line 2 — ⤷ drawn arrow then recipient
+      // Draw ⤷: short vertical stroke down then right with arrowhead
+      doc.setDrawColor(0x11,0x1B,0x1E);doc.setLineWidth(1.1);
+      doc.line(59,ry2-14,59,ry2-5);          // vertical stroke
+      doc.line(59,ry2-5,73,ry2-5);           // horizontal shaft
+      doc.line(73,ry2-5,69,ry2-9);           // arrowhead upper
+      doc.line(73,ry2-5,69,ry2-1);           // arrowhead lower
       doc.setFont('Roboto','semibold');doc.setFontSize(16);doc.setCharSpace(0.8);
-      doc.text(`${rec}${multiRec&&!rec.endsWith('...')?'+':''}`,56+aw+6,ry2);
+      doc.text(`${rec}${multiRec&&!rec.endsWith('...')?'+':''}`,79,ry2);
 
-      // VALUE — centred under VALUE (USD) header, vertically mid
-      doc.setFont('Roboto','normal');
+      // VALUE — centred under VALUE (USD) header
+      doc.setFont('Roboto','normal');doc.setCharSpace(0.8);
       doc.text(fmtRowValue(deal.amount),_valCenterX,rym,{align:'center'});
       // METRO AREA
       const iso=ISO3[deal.country]||deal.country.slice(0,3).toUpperCase();
@@ -1064,8 +1070,8 @@ async function generateReport(){
     drawGradBar(doc,0,1259,1240,8.76);
 
     // ── 34-35. TAGLINE — Playfair Regular 24pt ls=1.2  (Figma top: 1282/1313) ──
-    doc.setFont('Playfair','semibold');doc.setFontSize(24);
-    doc.setCharSpace(1.2);doc.setTextColor(0x20,0x49,0x37);
+    doc.setFont('OpenSauceOne','mediumitalic');doc.setFontSize(24);
+    doc.setCharSpace(0.6);doc.setTextColor(0x20,0x49,0x37);
     doc.text('Impact capital flows are out there.',620,1305,{align:'center'});
     doc.text('Fragmented, dispersed, hard to see — until now.',620,1336,{align:'center'});
     doc.setCharSpace(0);
