@@ -987,7 +987,7 @@ async function generateReport(){
     // ── 19. HIGHLIGHTS HEADER  y=898 ─────────────────────────
     doc.setFont('Roboto','semibold');doc.setFontSize(22);
     doc.setCharSpace(1.1);doc.setTextColor(0x20,0x49,0x37);
-    doc.text('HIGHLIGHTS',56,898);
+    doc.text('HIGHLIGHTS',56,914); // Figma top 898 + cap-height 16pt
     doc.setCharSpace(0);
 
     // ── 20. Table header top rule  y=935 — off-black ─────────
@@ -1000,13 +1000,13 @@ async function generateReport(){
     ];
     doc.setFont('Roboto','semibold');doc.setFontSize(18);
     doc.setCharSpace(0.9);doc.setTextColor(0x11,0x1B,0x1E);
-    HCOLS.forEach(h=>doc.text(h.t,h.x,941));
+    HCOLS.forEach(h=>doc.text(h.t,h.x,954)); // Figma top 941 + cap-height 13pt
     // "(USD)" — OpenSauceOne SemiBold 12pt #7A8380 ls=0.6  y=948
     doc.setFont('Roboto','semibold');doc.setFontSize(18);doc.setCharSpace(0.9);
     const _vw=doc.getStringUnitWidth('VALUE')*18+0.9*5;
     doc.setFont('OpenSauceOne','semibold');doc.setFontSize(12);
     doc.setCharSpace(0.6);doc.setTextColor(0x7A,0x83,0x80);
-    doc.text('(USD)',449+_vw+4,948);
+    doc.text('(USD)',449+_vw+4,957); // Figma top 948 + cap-height 9pt
     doc.setCharSpace(0);
     // Compute centre of VALUE(USD) header block for data alignment
     const _usdW=doc.getStringUnitWidth('(USD)')*12+0.6*5;
@@ -1020,9 +1020,10 @@ async function generateReport(){
     // Recipient baselines: 1000,1055,1110,1165,1220
     // Other-col baselines: 987,1043,1098,1153,1208
     // Row separators (light): 1026,1081,1136,1191
-    const INV_YS =[978,1033,1088,1143,1198];
-    const REC_YS =[1000,1055,1110,1165,1220];
-    const MID_YS =[987,1043,1098,1153,1208];
+    // Figma top coords + 12pt cap-height offset for 16pt Roboto → jsPDF baselines
+    const INV_YS =[990,1045,1100,1155,1210];
+    const REC_YS =[1012,1067,1122,1177,1232];
+    const MID_YS =[999,1055,1110,1165,1220];
     const ROW_LINES=[1026,1081,1136,1191];
     const _trunc=(n,max)=>{const s=shortenName(n);return s.length<=max?s:s.slice(0,max-3)+'...'};
     stats.highlightRows.forEach((deal,idx)=>{
