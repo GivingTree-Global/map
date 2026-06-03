@@ -660,7 +660,46 @@ function computeReportStats(fl){
   const convertibleNotes=0,exits=0;
   const totalOther=col1Loans+col1Grants+convertibleNotes+exits;
 
-  return{totalCapital,totalDeals:fl.length,allInst,investorSet,recipientSet,investorCats,dealSubtypes,investments,fundraises,themesSorted,socialThemeCount,envThemeCount,citiesSorted,countriesSorted,continents,cityCountry,countryMetros,crossBorderPct,highlightRows,invTypes,i2iDeals,i2bDeals,i2iCapital,i2bCapital,totalInvestments,vcInvestments,peInvestments,bonds,blendedFinanceDeals,totalRounds,roundStages,col1Loans,col1Grants,convertibleNotes,exits,totalOther};
+  // Theme overlap analysis (uses d.subThemes[] if present; gracefully zeros when absent)
+  let multiThemeDealCount=0,totalThemeInstances=fl.length;
+  const themeCoOcc={};
+  fl.forEach(d=>{
+    const primary=SL[d.sector]||d.sector;
+    const subs=Array.isArray(d.subThemes)?d.subThemes.map(s=>SL[s]||s).filter(t=>t&&t!==primary):[];
+    if(subs.length>0){multiThemeDealCount++;totalThemeInstances+=subs.length;}
+    const allT=[primary,...subs];
+    for(let i=0;i<allT.length;i++){for(let j=i+1;j<allT.length;j++){
+      const key=[allT[i],allT[j]].sort().join('|||');
+      if(!themeCoOcc[key])themeCoOcc[key]={count:0,a:allT[i],b:allT[j],dealTypes:{}};
+      themeCoOcc[key].count++;
+      const dt=d.dealType||'deals';
+      themeCoOcc[key].dealTypes[dt]=(themeCoOcc[key].dealTypes[dt]||0)+1;
+    }}
+  });
+  const multiThemePct=fl.length>0?Math.round((multiThemeDealCount/fl.length)*100):0;
+  const avgThemesPerDeal=fl.length>0?+(totalThemeInstances/fl.length).toFixed(1):1;
+  // Sort co-occurrences; skip same-env-cluster pairs (Energy+Climate etc.)
+  const _envCluster=new Set(['Energy','Climate','Circular Economy','Conservation','Agritech','Infrastructure']);
+  const sortedCoOcc=Object.values(themeCoOcc).sort((a,b)=>b.count-a.count);
+  const filteredOverlaps=[];
+  for(const co of sortedCoOcc){
+    if(_envCluster.has(co.a)&&_envCluster.has(co.b))continue; // skip same-cluster
+    const topDT=Object.entries(co.dealTypes).sort((a,b)=>b[1]-a[1])[0]?.[0]||'investments';
+    filteredOverlaps.push({a:co.a,b:co.b,count:co.count,dealType:topDT.toLowerCase()});
+    if(filteredOverlaps.length>=5)break;
+  }
+  // Ensure second overlap doesn't share BOTH themes with first
+  const validOverlaps=[];
+  if(filteredOverlaps.length>0){
+    validOverlaps.push(filteredOverlaps[0]);
+    const{a:oa,b:ob}=filteredOverlaps[0];
+    for(let i=1;i<filteredOverlaps.length;i++){
+      const{a,b}=filteredOverlaps[i];
+      if(!((a===oa||a===ob)&&(b===oa||b===ob))){validOverlaps.push(filteredOverlaps[i]);break;}
+    }
+  }
+
+  return{totalCapital,totalDeals:fl.length,allInst,investorSet,recipientSet,investorCats,dealSubtypes,investments,fundraises,themesSorted,socialThemeCount,envThemeCount,citiesSorted,countriesSorted,continents,cityCountry,countryMetros,crossBorderPct,highlightRows,invTypes,i2iDeals,i2bDeals,i2iCapital,i2bCapital,totalInvestments,vcInvestments,peInvestments,bonds,blendedFinanceDeals,totalRounds,roundStages,col1Loans,col1Grants,convertibleNotes,exits,totalOther,multiThemePct,avgThemesPerDeal,validOverlaps};
 }
 
 function joinList(arr){if(!arr.length)return'';if(arr.length===1)return arr[0];if(arr.length===2)return arr[0]+' and '+arr[1];return arr.slice(0,-1).join(', ')+', and '+arr[arr.length-1]}
@@ -769,21 +808,84 @@ function buildCol1(stats){
 }
 
 function buildCol2(stats){
-  const{themesSorted,socialThemeCount,envThemeCount,totalDeals}=stats;
-  const top5=themesSorted.slice(0,5);
-  const themeList=top5.map(([k,v])=>`${k} (${v} deals)`);
-  const extra=themesSorted.length-5;
-  let opening;
-  if(envThemeCount===0)opening=`—across social themes. This capital is reaching communities through `;
-  else if(socialThemeCount===0)opening=`—across environmental themes. This capital is reaching ecosystems through `;
-  else opening=`—across ${socialThemeCount} social and ${envThemeCount} environmental themes. This capital is reaching communities and ecosystems through `;
-  let t=opening+joinList(themeList)+(extra>0?`, and ${extra} other themes`:'')+'.';
-  if(themesSorted.length>0){
+  const{themesSorted,socialThemeCount,envThemeCount,totalDeals,
+        multiThemePct,avgThemesPerDeal,validOverlaps}=stats;
+
+  // ── Opener (conditional on social/env mix) ───────────────────
+  const opener=socialThemeCount>0&&envThemeCount>0
+    ?`—across **${socialThemeCount} social** and **${envThemeCount} environmental** themes.`
+    :socialThemeCount>0?`—across **${socialThemeCount} social** themes.`
+    :`—across **${envThemeCount} environmental** themes.`;
+
+  const reach=socialThemeCount>0&&envThemeCount>0?'communities and ecosystems':
+    socialThemeCount>0?'communities':'ecosystems';
+
+  // ── Theme list (topN themes with optional deal counts) ────────
+  const buildThemeList=(topN,withCounts)=>{
+    if(topN===0)return`Capital is reaching ${reach} through **${themesSorted.length} themes**.`;
+    const top=themesSorted.slice(0,topN),rest=themesSorted.slice(topN);
+    const restDeals=rest.reduce((s,[,n])=>s+n,0);
+    const items=withCounts
+      ?top.map(([name,n])=>`**${name}** (${n} deal${n!==1?'s':''})`)
+      :top.map(([name])=>`**${name}**`);
+    let s=`Capital is reaching ${reach} through ${joinList(items)}`;
+    if(rest.length>0)s+=` — and ${rest.length} other theme${rest.length!==1?'s':''} (${restDeals} deal${restDeals!==1?'s':''})`;
+    return s+'.';
+  };
+
+  // ── Most active theme sentence ────────────────────────────────
+  const buildActive=()=>{
+    if(!themesSorted.length)return'';
     const[top,topN]=themesSorted[0];
     const pct=Math.round((topN/totalDeals)*100);
-    t+=`\n\nThe most active theme, ${top}, represents ${pct}% of all deals mapped in this report.`;
+    return`The most active theme, **${top}**, represents **${pct}%** of all deals in this report.`;
+  };
+
+  // ── Overlap paragraph ─────────────────────────────────────────
+  const condSentence=multiThemePct>=60?'reflecting a highly interconnected impact landscape where solutions rarely fit a single category.':
+    multiThemePct>=30?'showing a mix of focused and cross-cutting approaches to impact.':
+    multiThemePct>=10?'indicating capital mostly targeting distinct, specialized challenges.':
+    'indicating capital largely targeting distinct, specialized challenges.';
+
+  const buildOverlap=(withSecond)=>{
+    if(!multiThemePct||!validOverlaps.length)return'';
+    const o1=validOverlaps[0];
+    let s=`**${multiThemePct}%** of deals span multiple themes, averaging ${avgThemesPerDeal} themes per deal. The most common overlap is between **${o1.a}** and **${o1.b}**, appearing together in ${o1.count} deal${o1.count!==1?'s':''} — ${condSentence}`;
+    if(withSecond&&validOverlaps.length>1){
+      const o2=validOverlaps[1];
+      s+=` Another notable overlap is between **${o2.a}** and **${o2.b}**, appearing together in ${o2.count} deal${o2.count!==1?'s':''}, mostly in ${o2.dealType}.`;
+    }
+    return s;
+  };
+
+  // ── Progressive truncation (8 levels per spec) ───────────────
+  // [topN, withCounts, includeActive, includeOverlap, withSecondOverlap]
+  const configs=[
+    [5,true, true, true, true],   // full
+    [5,true, true, true, false],  // 1: drop second overlap sentence
+    [5,true, true, false,false],  // 2: drop overlap paragraph
+    [5,true, false,false,false],  // 3: drop most active theme
+    [3,true, false,false,false],  // 4: 3 themes with counts
+    [3,false,false,false,false],  // 5: 3 themes names only
+    [2,false,false,false,false],  // 6: 2 themes names only
+    [0,false,false,false,false],  // 7: "through XX themes" only
+    [-1,false,false,false,false], // 8: opener only → "—across XX themes"
+  ];
+
+  const assemble=([topN,wc,act,ovr,sec2])=>{
+    if(topN===-1)return`—across **${themesSorted.length} themes**.`;
+    let t=opener;
+    t+='\n\n'+buildThemeList(topN,wc);
+    if(act){const a=buildActive();if(a)t+='\n\n'+a;}
+    if(ovr){const o=buildOverlap(sec2);if(o)t+='\n\n'+o;}
+    return t;
+  };
+
+  for(const cfg of configs){
+    const t=assemble(cfg);
+    if(t.replace(/\*\*/g,'').length<=850)return t;
   }
-  return t;
+  return`—across **${themesSorted.length} themes**.`;
 }
 
 function buildCol3(stats){
@@ -946,7 +1048,7 @@ function renderRich(doc,text,x,y,maxW,fontSize,lineH,maxY,colorR,colorG,colorB,f
     if(tok.nl){flush();curY+=(curX===x?paraH:lineH);curX=x;if(curY>maxY)return;continue}
     const words=tok.t.split(' ');
     for(let wi=0;wi<words.length;wi++){
-      const w=words[wi];if(w==='')continue;
+      const w=words[wi];if(w===''){curX+=meas(' ',tok.b);continue;} // advance cursor for inter-token spaces
       const ws=w+(wi<words.length-1?' ':'');
       const ww=meas(ws,tok.b);
       if(curX+ww>x+maxW+2&&curX>x){flush();curY+=lineH;curX=x;if(curY>maxY)return}
