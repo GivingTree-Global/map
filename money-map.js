@@ -881,8 +881,15 @@ async function generateReport(){
     ]);
 
     // ── PAGE BACKGROUND ───────────────────────────────────────
-    doc.setFillColor(0xFF,0xFE,0xF9);
-    doc.rect(0,0,1240,1754,'F');
+    // Header (0–155): pure white
+    doc.setFillColor(0xFF,0xFF,0xFF);
+    doc.rect(0,0,1240,155,'F');
+    // Body (155–1259): #FFFAEE at 1% opacity over white → (255,255,253)
+    doc.setFillColor(255,255,253);
+    doc.rect(0,155,1240,1104,'F');
+    // Footer (1259–bottom): #BCBAAB at 1% opacity over white → (255,255,255)
+    doc.setFillColor(0xFF,0xFF,0xFF);
+    doc.rect(0,1259,1240,495,'F');
 
     // ── 1. TOP GRADIENT BAR ───────────────────────────────────
     drawGradBar(doc,0,0,1240,8.76);
@@ -987,11 +994,11 @@ async function generateReport(){
     // ── 19. HIGHLIGHTS HEADER  y=898 ─────────────────────────
     doc.setFont('Roboto','semibold');doc.setFontSize(22);
     doc.setCharSpace(1.1);doc.setTextColor(0x20,0x49,0x37);
-    doc.text('HIGHLIGHTS',56,914); // Figma top 898 + cap-height 16pt
+    doc.text('HIGHLIGHTS',56,911); // Figma top 898 + cap-height 16pt, -3px
     doc.setCharSpace(0);
 
     // ── 20. Table header top rule  y=935 — off-black ─────────
-    drawRule(doc,56,935,1124,0x11,0x1B,0x1E);
+    drawRule(doc,56,930,1124,0x11,0x1B,0x1E);
 
     // ── 21-26. Column headers  y=941 Roboto SemiBold 18pt ls=0.9 ──
     const HCOLS=[
@@ -1000,20 +1007,20 @@ async function generateReport(){
     ];
     doc.setFont('Roboto','semibold');doc.setFontSize(18);
     doc.setCharSpace(0.9);doc.setTextColor(0x11,0x1B,0x1E);
-    HCOLS.forEach(h=>doc.text(h.t,h.x,954)); // Figma top 941 + cap-height 13pt
+    HCOLS.forEach(h=>doc.text(h.t,h.x,951)); // Figma top 941 + cap-height 13pt, -3px
     // "(USD)" — OpenSauceOne SemiBold 12pt #7A8380 ls=0.6  y=948
     doc.setFont('Roboto','semibold');doc.setFontSize(18);doc.setCharSpace(0.9);
     const _vw=doc.getStringUnitWidth('VALUE')*18+0.9*5;
     doc.setFont('OpenSauceOne','semibold');doc.setFontSize(12);
     doc.setCharSpace(0.6);doc.setTextColor(0x7A,0x83,0x80);
-    doc.text('(USD)',449+_vw+4,957); // Figma top 948 + cap-height 9pt
+    doc.text('(USD)',449+_vw+4,954); // Figma top 948 + cap-height 9pt, -3px
     doc.setCharSpace(0);
     // Compute centre of VALUE(USD) header block for data alignment
     const _usdW=doc.getStringUnitWidth('(USD)')*12+0.6*5;
     const _valCenterX=449+(_vw+4+_usdW)/2;
 
     // ── 27. Table header bottom rule  y=971 — off-black ──────
-    drawRule(doc,56,971,1124,0x11,0x1B,0x1E);
+    drawRule(doc,56,966,1124,0x11,0x1B,0x1E);
 
     // ── 28-32. Data rows — exact Y coords from Figma ─────────
     // Investor baselines: 978,1033,1088,1143,1198
@@ -1021,10 +1028,10 @@ async function generateReport(){
     // Other-col baselines: 987,1043,1098,1153,1208
     // Row separators (light): 1026,1081,1136,1191
     // Figma top coords + 12pt cap-height offset for 16pt Roboto → jsPDF baselines
-    const INV_YS =[990,1045,1100,1155,1210];
-    const REC_YS =[1012,1067,1122,1177,1232];
-    const MID_YS =[999,1055,1110,1165,1220];
-    const ROW_LINES=[1026,1081,1136,1191];
+    const INV_YS =[987,1042,1097,1152,1207];
+    const REC_YS =[1009,1064,1119,1174,1229];
+    const MID_YS =[996,1052,1107,1162,1217];
+    const ROW_LINES=[1021,1076,1131,1186];
     const _trunc=(n,max)=>{const s=shortenName(n);return s.length<=max?s:s.slice(0,max-3)+'...'};
     stats.highlightRows.forEach((deal,idx)=>{
       if(idx>=5)return;
@@ -1104,15 +1111,23 @@ async function generateReport(){
       {t:' and ',lnk:null},
       {t:'Substack',lnk:'https://givingtree.substack.com/'},
       {t:'   •   ',lnk:null},
-      {t:'See the GivingTree Map',lnk:'https://www.givingtree.com.br/map'},
+      {t:'See the ',lnk:null},
+      {t:'GivingTree Map',lnk:'https://www.givingtree.com.br/map'},
       {t:'   •   ',lnk:null},
       {t:'Contact us',lnk:'https://www.givingtree.com.br/contact'},
     ];
     let totalFW=0;const fws=fp.map(p=>{const w=doc.getStringUnitWidth(p.t)*20;totalFW+=w;return w});
     let fx=620-totalFW/2;
     fp.forEach((p,i)=>{
-      if(p.lnk){doc.setTextColor(0x32,0x52,0x30);doc.textWithLink(p.t,fx,1625,{url:p.lnk})}
-      else{doc.setTextColor(0x11,0x1B,0x1E);doc.text(p.t,fx,1625)}
+      if(p.lnk){
+        doc.setTextColor(0x32,0x52,0x30);
+        doc.textWithLink(p.t,fx,1625,{url:p.lnk});
+        // underline the linked text
+        doc.setDrawColor(0x32,0x52,0x30);doc.setLineWidth(0.7);
+        doc.line(fx,1627,fx+fws[i],1627);
+      } else {
+        doc.setTextColor(0x11,0x1B,0x1E);doc.text(p.t,fx,1625);
+      }
       fx+=fws[i];
     });
     doc.setCharSpace(0);
