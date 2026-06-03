@@ -802,7 +802,8 @@ function buildCol1(stats){
   };
   for(const cfg of configs){
     const t=assemble(cfg);
-    if(t.replace(/\*\*/g,'').length<=850)return t;
+    const plain=t.replace(/\*\*/g,'');
+    if(plain.length<=850&&estimateColHeight(t,340,19,12)<=476)return t;
   }
   return`**${totalDeals} deals** mapped across multiple investment types.`;
 }
@@ -812,8 +813,9 @@ function buildCol2(stats){
         multiThemePct,avgThemesPerDeal,validOverlaps}=stats;
 
   // ── Opener (conditional on social/env mix) ───────────────────
+  // Mixed: no trailing "themes." — just the numbers. Pure social/env keep "themes."
   const opener=socialThemeCount>0&&envThemeCount>0
-    ?`—across **${socialThemeCount} social** and **${envThemeCount} environmental** themes.`
+    ?`—**${socialThemeCount} social** and **${envThemeCount} environmental**.`
     :socialThemeCount>0?`—across **${socialThemeCount} social** themes.`
     :`—across **${envThemeCount} environmental** themes.`;
 
@@ -883,7 +885,8 @@ function buildCol2(stats){
 
   for(const cfg of configs){
     const t=assemble(cfg);
-    if(t.replace(/\*\*/g,'').length<=850)return t;
+    const plain=t.replace(/\*\*/g,'');
+    if(plain.length<=850&&estimateColHeight(t,340,19,12)<=476)return t;
   }
   return`—across **${themesSorted.length} themes**.`;
 }
@@ -968,6 +971,21 @@ function drawGradBar(doc,x,y,w,h){
 
 function drawRule(doc,x,y,w,r=0xBB,g=0xCB,bd=0xBD){doc.setDrawColor(r,g,bd);doc.setLineWidth(0.5);doc.line(x,y,x+w,y)}
 
+// Estimate rendered column height without a jsPDF doc — used by build functions
+// to check height constraint before rendering. Approximates Roboto Light 16pt + charSpace 0.8.
+function estimateColHeight(text,colW,lineH,paraH){
+  const avgCW=8.0; // ≈ 0.45*16 + 0.8 charSpace per char
+  const cpl=Math.floor(colW/avgCW);
+  const cplBullet=Math.floor((colW-20)/avgCW);
+  let h=0;
+  for(const p of text.replace(/\*\*/g,'').split('\n')){
+    if(!p.trim()){h+=paraH;continue;}
+    if(p.startsWith('• ')){h+=paraH;h+=Math.max(1,Math.ceil(p.slice(2).length/cplBullet))*lineH;}
+    else{h+=Math.max(1,Math.ceil(p.length/cpl))*lineH;}
+  }
+  return h;
+}
+
 // Wrapper for col1: renders text with hanging-indent bullets (• lines) and returns final Y.
 // Non-bullet paragraphs fall through to renderRich line-by-line.
 function renderCol1Bullets(doc,text,x,y,maxW,fontSize,lineH,paraH,maxY,colorR,colorG,colorB,indent){
@@ -1020,6 +1038,7 @@ function renderCol1Bullets(doc,text,x,y,maxW,fontSize,lineH,paraH,maxY,colorR,co
       }
     }
   }
+  return curY;
 }
 
 // Render text with inline **bold** markers, word-wrapping at maxWidth.
@@ -1056,6 +1075,7 @@ function renderRich(doc,text,x,y,maxW,fontSize,lineH,maxY,colorR,colorG,colorB,f
     }
   }
   flush();
+  return curY;
 }
 
 const LOGO_SVG=`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="2000" zoomAndPan="magnify" viewBox="0 0 1500 1499.999933" height="2000" preserveAspectRatio="xMidYMid meet" version="1.0"><defs><g/><clipPath id="e61daaafe7"><path d="M 4 0.878906 L 469 0.878906 L 469 734.320312 L 4 734.320312 Z M 4 0.878906 " clip-rule="nonzero"/></clipPath><clipPath id="867285d1ec"><rect x="0" width="465" y="0" height="735"/></clipPath><clipPath id="0a63b7d588"><path d="M 0.761719 226 L 537 226 L 537 604 L 0.761719 604 Z M 0.761719 226 " clip-rule="nonzero"/></clipPath><clipPath id="0c5aaf6c24"><rect x="0" width="537" y="0" height="378"/></clipPath><clipPath id="3fa17b8f1d"><path d="M 465 98 L 1433.320312 98 L 1433.320312 370 L 465 370 Z M 465 98 " clip-rule="nonzero"/></clipPath><clipPath id="eda9da026a"><rect x="0" width="969" y="0" height="272"/></clipPath><clipPath id="3a02509499"><rect x="0" width="584" y="0" height="241"/></clipPath><clipPath id="3d82b17a33"><rect x="0" width="1434" y="0" height="735"/></clipPath></defs><g transform="matrix(1, 0, 0, 1, 53, 386)"><g clip-path="url(#3d82b17a33)"><g clip-path="url(#e61daaafe7)"><g transform="matrix(1, 0, 0, 1, 4, 0.000000000000113687)"><g clip-path="url(#867285d1ec)"><g fill="#325230" fill-opacity="1"><g transform="translate(1.027971, 516.518747)"><g><path d="M 59.609375 -288.359375 C 59.609375 -244.296875 69.4375 -222.15625 89.09375 -221.9375 C 92.550781 -221.9375 97.953125 -225.175781 105.296875 -231.65625 C 117.609375 -240.726562 127.976562 -245.59375 136.40625 -246.25 C 150.226562 -246.25 157.789062 -239.660156 159.09375 -226.484375 C 159.738281 -217.628906 155.632812 -210.71875 146.78125 -205.75 C 142.238281 -203.363281 137.484375 -202.171875 132.515625 -202.171875 C 107.890625 -202.171875 90.070312 -204.007812 79.0625 -207.6875 C 52.0625 -216.539062 33.484375 -234.6875 23.328125 -262.125 C 18.796875 -274.863281 16.53125 -288.363281 16.53125 -302.625 C 16.53125 -343.664062 35.753906 -369.582031 74.203125 -380.375 C 86.078125 -383.832031 99.035156 -385.5625 113.078125 -385.5625 L 358.671875 -385.5625 C 382.429688 -385.5625 397.769531 -390.53125 404.6875 -400.46875 C 409.21875 -407.382812 411.484375 -417.753906 411.484375 -431.578125 L 425.09375 -431.578125 C 433.519531 -403.273438 433.410156 -384.640625 424.765625 -375.671875 C 416.128906 -366.710938 401.765625 -361.585938 381.671875 -360.296875 L 259.203125 -360.296875 L 259.203125 -67.71875 C 259.203125 -47.84375 260.601562 -34.9375 263.40625 -29 C 266.21875 -23.0625 272.8125 -19.007812 283.1875 -16.84375 L 301.96875 -13.28125 L 301.96875 0 L 176.265625 0 L 176.265625 -13.609375 L 198.609375 -18.46875 C 206.609375 -20.195312 211.578125 -22.679688 213.515625 -25.921875 C 215.242188 -29.585938 216.109375 -37.472656 216.109375 -49.578125 L 216.109375 -360.296875 L 109.1875 -360.296875 C 84.132812 -360.296875 68.472656 -345.390625 62.203125 -315.578125 C 60.472656 -307.148438 59.609375 -298.078125 59.609375 -288.359375 Z M 59.609375 -288.359375 "/></g></g></g></g></g></g><g clip-path="url(#0a63b7d588)"><g transform="matrix(1, 0, 0, 1, 0, 226)"><g clip-path="url(#0c5aaf6c24)"><g fill="#325230" fill-opacity="1"><g transform="translate(402.166551, 377.218841)"><g><path d="M -147.03125 -206.59375 L -147.03125 -365.96875 L -143.8125 -365.96875 C -143.8125 -357.019531 -140.679688 -349.414062 -134.421875 -343.15625 C -128.160156 -336.894531 -120.554688 -333.765625 -111.609375 -333.765625 L 0 -333.765625 C -3.9375 -327.328125 -7.15625 -320.351562 -9.65625 -312.84375 C -12.164062 -305.332031 -13.421875 -296.566406 -13.421875 -286.546875 C -13.421875 -273.671875 -12.34375 -262.3125 -10.1875 -252.46875 C -8.039062 -242.632812 -5.804688 -232.882812 -3.484375 -223.21875 C -1.160156 -213.5625 0 -202.65625 0 -190.5 C 0 -167.238281 -4.828125 -145.410156 -14.484375 -125.015625 C -24.148438 -104.628906 -37.65625 -86.65625 -55 -71.09375 C -72.351562 -55.539062 -92.382812 -43.378906 -115.09375 -34.609375 C -137.8125 -25.847656 -162.050781 -21.46875 -187.8125 -21.46875 C -213.570312 -21.46875 -237.804688 -25.847656 -260.515625 -34.609375 C -283.234375 -43.378906 -303.269531 -55.539062 -320.625 -71.09375 C -337.976562 -86.65625 -351.484375 -104.628906 -361.140625 -125.015625 C -370.796875 -145.410156 -375.625 -167.238281 -375.625 -190.5 C -375.625 -209.8125 -372.3125 -228.050781 -365.6875 -245.21875 C -359.070312 -262.394531 -350.578125 -277.691406 -340.203125 -291.109375 C -329.835938 -304.523438 -318.570312 -314.988281 -306.40625 -322.5 C -300.675781 -326.082031 -294.769531 -328.851562 -288.6875 -330.8125 C -282.613281 -332.78125 -276.710938 -333.765625 -270.984375 -333.765625 C -255.242188 -333.765625 -241.738281 -328.128906 -230.46875 -316.859375 C -219.207031 -305.597656 -213.578125 -292.097656 -213.578125 -276.359375 C -213.578125 -260.617188 -219.207031 -247.113281 -230.46875 -235.84375 C -241.738281 -224.570312 -255.242188 -218.9375 -270.984375 -218.9375 C -279.929688 -218.9375 -287.535156 -220.546875 -293.796875 -223.765625 C -300.054688 -226.984375 -305.597656 -230.648438 -310.421875 -234.765625 C -315.253906 -238.878906 -320.082031 -242.546875 -324.90625 -245.765625 C -329.738281 -248.984375 -335.375 -250.59375 -341.8125 -250.59375 C -350.40625 -250.59375 -356.9375 -246.835938 -361.40625 -239.328125 C -365.875 -231.816406 -368.820312 -223.320312 -370.25 -213.84375 C -371.6875 -204.363281 -372.40625 -196.582031 -372.40625 -190.5 C -372.40625 -177.976562 -364.085938 -166.441406 -347.453125 -155.890625 C -330.816406 -145.335938 -308.546875 -136.929688 -280.640625 -130.671875 C -252.742188 -124.410156 -221.800781 -121.28125 -187.8125 -121.28125 C -153.820312 -121.28125 -122.875 -124.410156 -94.96875 -130.671875 C -67.070312 -136.929688 -44.804688 -145.335938 -28.171875 -155.890625 C -11.535156 -166.441406 -3.21875 -177.976562 -3.21875 -190.5 C -3.21875 -196.582031 -3.929688 -204.539062 -5.359375 -214.375 C -6.796875 -224.207031 -9.835938 -232.523438 -14.484375 -239.328125 L -111.609375 -239.328125 C -120.554688 -239.328125 -128.160156 -236.195312 -134.421875 -229.9375 C -140.679688 -223.675781 -143.8125 -215.894531 -143.8125 -206.59375 Z M -147.03125 -206.59375 "/></g></g></g></g></g></g><g clip-path="url(#3fa17b8f1d)"><g transform="matrix(1, 0, 0, 1, 465, 98)"><g clip-path="url(#eda9da026a)"><g fill="#325230" fill-opacity="1"><g transform="translate(0.209442, 205.310039)"><g><path d="M 11.277344 -73.632812 C 11.277344 -27.863281 45.109375 2.875 87.121094 2.875 C 111.226562 2.875 131.347656 -7.296875 145.058594 -22.554688 L 145.058594 -75.84375 L 76.066406 -75.84375 L 76.066406 -59.480469 L 126.703125 -59.480469 L 126.703125 -29.410156 C 119.40625 -22.113281 104.8125 -13.488281 87.121094 -13.488281 C 54.839844 -13.488281 30.292969 -38.695312 30.292969 -73.632812 C 30.292969 -108.792969 54.839844 -133.558594 87.121094 -133.558594 C 104.8125 -133.558594 120.511719 -125.15625 129.800781 -113.214844 L 144.394531 -122.28125 C 131.347656 -138.421875 113.214844 -149.921875 87.121094 -149.921875 C 45.109375 -149.921875 11.277344 -119.40625 11.277344 -73.632812 Z M 11.277344 -73.632812 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(198.334404, 205.310039)"><g><path d="M 35.601562 0 L 35.601562 -147.488281 L 17.246094 -147.488281 L 17.246094 0 Z M 35.601562 0 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(291.651249, 205.310039)"><g><path d="M 84.027344 0 L 143.507812 -147.488281 L 122.503906 -147.488281 L 72.75 -20.121094 L 22.996094 -147.488281 L 1.988281 -147.488281 L 61.25 0 Z M 84.027344 0 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(477.614897, 205.310039)"><g><path d="M 35.601562 0 L 35.601562 -147.488281 L 17.246094 -147.488281 L 17.246094 0 Z M 35.601562 0 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(570.931741, 205.310039)"><g><path d="M 139.308594 0 L 139.308594 -147.488281 L 120.953125 -147.488281 L 120.953125 -30.957031 L 36.042969 -147.488281 L 17.246094 -147.488281 L 17.246094 0 L 35.601562 0 L 35.601562 -118.964844 L 121.617188 0 Z M 139.308594 0 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(767.951125, 205.310039)"><g><path d="M 11.277344 -73.632812 C 11.277344 -27.863281 45.109375 2.875 87.121094 2.875 C 111.226562 2.875 131.347656 -7.296875 145.058594 -22.554688 L 145.058594 -75.84375 L 76.066406 -75.84375 L 76.066406 -59.480469 L 126.703125 -59.480469 L 126.703125 -29.410156 C 119.40625 -22.113281 104.8125 -13.488281 87.121094 -13.488281 C 54.839844 -13.488281 30.292969 -38.695312 30.292969 -73.632812 C 30.292969 -108.792969 54.839844 -133.558594 87.121094 -133.558594 C 104.8125 -133.558594 120.511719 -125.15625 129.800781 -113.214844 L 144.394531 -122.28125 C 131.347656 -138.421875 113.214844 -149.921875 87.121094 -149.921875 C 45.109375 -149.921875 11.277344 -119.40625 11.277344 -73.632812 Z M 11.277344 -73.632812 "/></g></g></g></g></g></g><g transform="matrix(1, 0, 0, 1, 495, 333)"><g clip-path="url(#3a02509499)"><g fill="#325230" fill-opacity="1"><g transform="translate(0.273892, 180.603189)"><g><path d="M 71.539062 0 L 71.539062 -106.8125 L 109.769531 -106.8125 L 109.769531 -131.445312 L 4.925781 -131.445312 L 4.925781 -106.8125 L 43.355469 -106.8125 L 43.355469 0 Z M 71.539062 0 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(142.755566, 180.603189)"><g><path d="M 119.425781 0 L 89.863281 -50.054688 C 104.054688 -53.40625 118.636719 -65.820312 118.636719 -89.078125 C 118.636719 -113.511719 101.886719 -131.445312 74.492188 -131.445312 L 13.007812 -131.445312 L 13.007812 0 L 40.992188 0 L 40.992188 -47.101562 L 61.488281 -47.101562 L 87.304688 0 Z M 90.0625 -89.273438 C 90.0625 -78.238281 81.585938 -71.144531 70.355469 -71.144531 L 40.992188 -71.144531 L 40.992188 -107.402344 L 70.355469 -107.402344 C 81.585938 -107.402344 90.0625 -100.308594 90.0625 -89.273438 Z M 90.0625 -89.273438 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(297.258086, 180.603189)"><g><path d="M 106.023438 0 L 106.023438 -24.238281 L 40.992188 -24.238281 L 40.992188 -54.785156 L 104.644531 -54.785156 L 104.644531 -78.828125 L 40.992188 -78.828125 L 40.992188 -107.402344 L 106.023438 -107.402344 L 106.023438 -131.445312 L 13.007812 -131.445312 L 13.007812 0 Z M 106.023438 0 "/></g></g></g><g fill="#325230" fill-opacity="1"><g transform="translate(439.936838, 180.603189)"><g><path d="M 106.023438 0 L 106.023438 -24.238281 L 40.992188 -24.238281 L 40.992188 -54.785156 L 104.644531 -54.785156 L 104.644531 -78.828125 L 40.992188 -78.828125 L 40.992188 -107.402344 L 106.023438 -107.402344 L 106.023438 -131.445312 L 13.007812 -131.445312 L 13.007812 0 Z M 106.023438 0 "/></g></g></g></g></g></g></g></svg>`;
@@ -1165,64 +1185,66 @@ async function generateReport(){
     drawRule(doc,0,155,1240,0xDD,0xE5,0xE0);
 
     // ── 8 & 9. TOP STAT CARDS ────────────────────────────────
-    // Card 1: x=341.3 y=191 w=223.54 h=120.56  center-x=453.07
-    // Card 2: x=675.3 y=191 w=223.54 h=120.56  center-x=787.07
+    // Row 1: x=341.07/675.07  y=176  w=224  h=101  center-x=453.07/787.07
     const capStr=fmtStatCard(stats.totalCapital);
     const instStr=String(stats.allInst.size);
     doc.setLineWidth(1);doc.setDrawColor(0x32,0x52,0x30);
-    [341.3,675.3].forEach((cx,i)=>{
+    [341.07,675.07].forEach(cx=>{
       doc.setFillColor(0xFF,0xFA,0xEE);
-      doc.roundedRect(cx,191,223.54,120.56,5,5,'FD');
+      doc.roundedRect(cx,176,224,101,5,5,'FD');
     });
-    // Values — OpenSauceOne Medium 38pt ls=1.9  baseline at card midpoint (191+60.28=251.28)
-    doc.setFont('OpenSauceOne','medium');doc.setFontSize(38);
-    doc.setCharSpace(1.9);doc.setTextColor(0x11,0x1B,0x1E);
-    doc.text(capStr,453.07,256,{align:'center'});
-    doc.text(instStr,787.07,256,{align:'center'});
-    // Labels — OpenSauceOne SemiBold 15pt ls=0.75  halfway between value baseline and card bottom
-    doc.setFont('OpenSauceOne','semibold');doc.setFontSize(15);
-    doc.setCharSpace(0.75);
-    doc.text('In Capital (USD)',453.07,290,{align:'center'});
-    doc.text('Institutions',787.07,290,{align:'center'});
+    // Values — OpenSauceOne Medium 40pt  Figma top=185 (176+9) → baseline +29
+    doc.setFont('OpenSauceOne','medium');doc.setFontSize(40);
+    doc.setCharSpace(0.5);doc.setTextColor(0x11,0x1B,0x1E);
+    doc.text(capStr,453.07,214,{align:'center'});
+    doc.text(instStr,787.07,214,{align:'center'});
+    // Labels — OpenSauceOne Medium 16pt (lighter than semibold, closest to Regular)
+    // Figma top=245 (176+69) → baseline +12
+    doc.setFont('OpenSauceOne','medium');doc.setFontSize(16);
+    doc.setCharSpace(0.4);
+    doc.text('(USD)',453.07,257,{align:'center'});
+    doc.text('institutions',787.07,257,{align:'center'});
     doc.setCharSpace(0);
 
     // ── 10-12. BOTTOM STAT CARDS ─────────────────────────────
-    // x=92/474/856  y=350  w=292  h=90.15
-    // 90% opacity fills blended over near-white:
-    //   Deals  #6B7D89 → #7A8A94   Themes #4E614D → #60715E   Metro #B84E1A → #BF6030
+    // x=92/474/856  y=299  w=292  h=75
+    // GT Blue #6B7D89 / GT Muted Green #4E614D / Terracotta #B66734
     const bCards=[
-      {lbl:'Deals',    val:String(stats.totalDeals),              x:92,  r:0x7A,g:0x8A,b:0x94},
-      {lbl:'Themes',   val:String(stats.themesSorted.length),     x:474, r:0x60,g:0x71,b:0x5E},
-      {lbl:'Metro areas',val:String(Object.keys(stats.cityCountry).length),x:856,r:0xBF,g:0x60,b:0x30},
+      {lbl:'deals',      val:String(stats.totalDeals),                          x:92,  r:0x6B,g:0x7D,b:0x89},
+      {lbl:'themes',     val:String(stats.themesSorted.length),                 x:474, r:0x4E,g:0x61,b:0x4D},
+      {lbl:'metro areas',val:String(Object.keys(stats.cityCountry).length),     x:856, r:0xB6,g:0x67,b:0x34},
     ];
     bCards.forEach(c=>{
       const cx=c.x+146;
-      doc.setFillColor(c.r,c.g,c.b);doc.setDrawColor(0x32,0x52,0x30);doc.setLineWidth(1);
-      doc.roundedRect(c.x,350,292,90.15,5,5,'FD');
-      // Value — OpenSauceOne Medium 38pt ls=1.9  baseline at card midpoint (350+45.075=395)
-      doc.setFont('OpenSauceOne','medium');doc.setFontSize(38);
-      doc.setCharSpace(1.9);doc.setTextColor(0xFF,0xFA,0xEE);
-      doc.text(c.val,cx,400,{align:'center'});
-      // Label — OpenSauceOne SemiBold 15pt ls=0.75  halfway between value baseline and card bottom
-      doc.setFont('OpenSauceOne','semibold');doc.setFontSize(15);
-      doc.setCharSpace(0.75);
-      doc.text(c.lbl,cx,427,{align:'center'});
+      doc.setFillColor(c.r,c.g,c.b);doc.setDrawColor(c.r,c.g,c.b);doc.setLineWidth(1);
+      doc.roundedRect(c.x,299,292,75,5,5,'FD');
+      // Value — OpenSauceOne Medium 34pt  Figma top=303 (299+4) → baseline +25
+      doc.setFont('OpenSauceOne','medium');doc.setFontSize(34);
+      doc.setCharSpace(0.5);doc.setTextColor(0xFF,0xFA,0xEE);
+      doc.text(c.val,cx,328,{align:'center'});
+      // Label — OpenSauceOne Medium 16pt  Figma top=346 (299+47) → baseline +12
+      doc.setFont('OpenSauceOne','medium');doc.setFontSize(16);
+      doc.setCharSpace(0.4);
+      doc.text(c.lbl,cx,358,{align:'center'});
       doc.setCharSpace(0);
     });
 
-    // ── 13-18. THREE COLUMNS + VERTICAL SEPARATORS ───────────
-    // Separators: x=78,460,842  y=465  h=92.5 (hairline)
-    doc.setLineWidth(0.25);
-    doc.setDrawColor(0x6B,0x7D,0x89);doc.line(78,482,78,574.5);
-    doc.setDrawColor(0x4E,0x61,0x4D);doc.line(460,482,460,574.5);
-    doc.setDrawColor(0xB8,0x4E,0x1A);doc.line(842,482,842,574.5);
+    // ── 13-18. THREE COLUMNS + DECORATIVE GUIDELINES ─────────
+    // Guidelines: x=68/451/833  y=393  h=92.5  hairline
+    // (Note: spec listed col3 guideline x=525 which appears to be a dictation error;
+    //  using x=833 to maintain consistent ~23px offset left of each column start.)
+    doc.setLineWidth(1.5);
+    doc.setDrawColor(0x6B,0x7D,0x89);doc.line(68, 393,68, 485.5);
+    doc.setDrawColor(0x4E,0x61,0x4D);doc.line(451,393,451,485.5);
+    doc.setDrawColor(0xB6,0x67,0x34);doc.line(833,393,833,485.5);
 
     // Column text — Roboto Light 16pt ls=0.8 black; bold segments use Roboto Medium
-    const COL_LH=19,COL_PARA=12,COL_MAXY=860;
+    // Column dimensions: x=92/474/856  y=393  w=340  maxHeight=476 → COL_MAXY=869
+    const COL_LH=19,COL_PARA=12,COL_MAXY=869;
     doc.setCharSpace(0.8);
-    renderCol1Bullets(doc,buildCol1(stats),99,482,283,16,COL_LH,COL_PARA,COL_MAXY,0,0,0,20);
-    renderRich(doc,buildCol2(stats),483,482,283,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium',COL_PARA);
-    renderRich(doc,buildCol3(stats),861,482,283,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium',COL_PARA);
+    renderCol1Bullets(doc,buildCol1(stats),92, 393,340,16,COL_LH,COL_PARA,COL_MAXY,0,0,0,20);
+    renderRich(doc,buildCol2(stats),       474,393,340,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium',COL_PARA);
+    renderRich(doc,buildCol3(stats),       856,393,340,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium',COL_PARA);
     doc.setCharSpace(0);
 
     // ── 19. HIGHLIGHTS HEADER  y=898 ─────────────────────────
