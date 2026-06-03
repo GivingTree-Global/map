@@ -619,21 +619,153 @@ function computeReportStats(fl){
   }
   highlightRows=highlightRows.slice(0,5);
 
-  return{totalCapital,totalDeals:fl.length,allInst,investorSet,recipientSet,investorCats,dealSubtypes,investments,fundraises,themesSorted,socialThemeCount,envThemeCount,citiesSorted,countriesSorted,continents,cityCountry,countryMetros,crossBorderPct,highlightRows};
+  // Per-unique-investor type breakdown (12 categories for col1 template)
+  const investorSourceTypeMap={};
+  fl.forEach(d=>{if(!investorSourceTypeMap[d.investor])investorSourceTypeMap[d.investor]=d.sourceType});
+  const invTypes={vcFirms:0,peFirms:0,hedgeFunds:0,wealthMgrs:0,multiFamilyOffices:0,
+    dfis:0,foundations:0,accelerators:0,corporateInvestors:0,govtEntities:0,
+    individualInvestors:0,otherInvestors:0};
+  Object.values(investorSourceTypeMap).forEach(st=>{
+    switch(st){
+      case'VC/PE':invTypes.vcFirms++;break;
+      case'DFI':invTypes.dfis++;break;
+      case'Family Office':invTypes.multiFamilyOffices++;break;
+      case'Foundation':invTypes.foundations++;break;
+      case'Government':invTypes.govtEntities++;break;
+      case'Corporate':invTypes.corporateInvestors++;break;
+      default:invTypes.otherInvestors++;break;
+    }
+  });
+
+  // Investor-to-investor (recipient is also an investor) vs investor-to-business
+  const i2iDeals=fl.filter(d=>investorSet.has(d.recipient));
+  const i2bDeals=fl.filter(d=>!investorSet.has(d.recipient));
+  const i2iCapital=i2iDeals.reduce((s,d)=>s+(d.amount||0),0);
+  const i2bCapital=i2bDeals.reduce((s,d)=>s+(d.amount||0),0);
+
+  // Investment subtypes (mapped from available fields)
+  const totalInvestments=fl.filter(d=>d.dealType==='Investment').length;
+  const vcInvestments=fl.filter(d=>d.dealType==='Investment'&&d.sourceType==='VC/PE').length;
+  const peInvestments=0; // can't distinguish PE from VC without additional data
+  const bonds=0;
+  const blendedFinanceDeals=fl.filter(d=>d.dealType==='Partnership').length;
+
+  // Round stages (sub-stage data not in model; all collapse to total)
+  const totalRounds=fl.filter(d=>d.dealType==='Fund Launch').length;
+  const roundStages={preSeed:0,seed:0,seriesA:0,seriesB:0,seriesC:0,seriesD:0};
+
+  // Other deals
+  const col1Loans=fl.filter(d=>d.dealType==='Loan').length;
+  const col1Grants=fl.filter(d=>d.dealType==='Grant').length;
+  const convertibleNotes=0,exits=0;
+  const totalOther=col1Loans+col1Grants+convertibleNotes+exits;
+
+  return{totalCapital,totalDeals:fl.length,allInst,investorSet,recipientSet,investorCats,dealSubtypes,investments,fundraises,themesSorted,socialThemeCount,envThemeCount,citiesSorted,countriesSorted,continents,cityCountry,countryMetros,crossBorderPct,highlightRows,invTypes,i2iDeals,i2bDeals,i2iCapital,i2bCapital,totalInvestments,vcInvestments,peInvestments,bonds,blendedFinanceDeals,totalRounds,roundStages,col1Loans,col1Grants,convertibleNotes,exits,totalOther};
 }
 
 function joinList(arr){if(!arr.length)return'';if(arr.length===1)return arr[0];if(arr.length===2)return arr[0]+' and '+arr[1];return arr.slice(0,-1).join(', ')+', and '+arr[arr.length-1]}
 
 function buildCol1(stats){
-  const{investorSet,recipientSet,investorCats,investments,fundraises,dealSubtypes}=stats;
-  const cats=Object.entries(investorCats).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  let t=`—across **${investorSet.size} investors** and **${recipientSet.size} private companies**.\n\nInvestors comprise `;
-  t+=joinList(cats.map(([k,v])=>`${v} ${k}`))+'.';
-  const invSubs=Object.entries(dealSubtypes).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  t+='\n\nDeals include:\n• **'+investments.length+' investments**';
-  if(invSubs.length)t+=' comprising '+joinList(invSubs.map(([k,v])=>`${v} ${k}`));
-  if(fundraises.length)t+='\n• **'+fundraises.length+' rounds of capital raised** by private companies';
-  return t;
+  const{investorSet,recipientSet,countriesSorted,invTypes,
+        i2iDeals,i2bDeals,i2iCapital,i2bCapital,
+        totalInvestments,vcInvestments,peInvestments,bonds,blendedFinanceDeals,
+        totalRounds,roundStages,col1Loans,col1Grants,convertibleNotes,exits,totalOther,totalDeals}=stats;
+  const nInv=investorSet.size,nRec=recipientSet.size,nCtry=countriesSorted.length;
+
+  // ── Opening line ─────────────────────────────────────────────
+  const openLine=nCtry>=2
+    ?`—across **${nInv} investors** in ${nCtry} countries and **${nRec} private companies** in ${nCtry} countries.`
+    :`—across **${nInv} investors** and **${nRec} private companies**.`;
+
+  // ── Investor types paragraph (5 collapse levels) ─────────────
+  const buildInvPara=(level)=>{
+    const t=invTypes;
+    if(level>=4)return`**${nInv} investors** across ${Object.values(t).filter(n=>n>0).length} institution types.`;
+    let cats;
+    if(level===0)cats=[[t.vcFirms,'venture capital firms'],[t.peFirms,'private equity firms'],[t.hedgeFunds,'hedge funds'],[t.wealthMgrs,'wealth & asset managers'],[t.multiFamilyOffices,'multi-family offices'],[t.dfis,'development finance institutions'],[t.foundations,'foundations'],[t.accelerators,'accelerators'],[t.corporateInvestors,'corporate investors'],[t.govtEntities,'government & public sector entities'],[t.individualInvestors,'individual investors'],[t.otherInvestors,'other']];
+    else if(level===1){const oth=t.accelerators+t.corporateInvestors+t.otherInvestors;cats=[[t.vcFirms,'venture capital firms'],[t.peFirms,'private equity firms'],[t.hedgeFunds,'hedge funds'],[t.wealthMgrs,'wealth & asset managers'],[t.multiFamilyOffices,'multi-family offices'],[t.dfis,'development finance institutions'],[t.foundations,'foundations'],[t.govtEntities,'government & public sector entities'],[t.individualInvestors,'individual investors'],[oth,'other investors']];}
+    else if(level===2){const oth=t.accelerators+t.corporateInvestors+t.otherInvestors+t.govtEntities+t.individualInvestors;cats=[[t.vcFirms,'venture capital firms'],[t.peFirms,'private equity firms'],[t.hedgeFunds,'hedge funds'],[t.wealthMgrs,'wealth & asset managers'],[t.multiFamilyOffices,'multi-family offices'],[t.dfis,'development finance institutions'],[t.foundations,'foundations'],[oth,'other investors']];}
+    else{const df=t.vcFirms+t.peFirms+t.hedgeFunds+t.wealthMgrs+t.multiFamilyOffices;const oth=t.accelerators+t.corporateInvestors+t.otherInvestors+t.govtEntities+t.individualInvestors;cats=[[df,'dedicated funds'],[t.dfis,'development finance institutions'],[t.foundations,'foundations'],[oth,'other investors']];}
+    const active=cats.filter(([n])=>n>0);
+    if(!active.length)return'';
+    return`**Investors** include ${joinList(active.map(([n,l])=>`${n} ${l}`))}.`;
+  };
+
+  // ── Flow paragraph ───────────────────────────────────────────
+  const buildFlow=()=>{
+    const parts=[];
+    if(i2iDeals.length>0)parts.push(`${i2iDeals.length} deals (${fmtStatCard(i2iCapital)}) flow from **investor to investor**.`);
+    if(i2bDeals.length>0)parts.push(`${i2bDeals.length} deals (${fmtStatCard(i2bCapital)}) flow directly from **investors to businesses**.`);
+    return parts.join(' ');
+  };
+
+  // ── Investments bullet (4 levels) ────────────────────────────
+  const buildInvBullet=(level)=>{
+    if(totalInvestments===0)return'';
+    if(level>=3)return`**${totalInvestments} investments**`;
+    const vc=vcInvestments,pe=peInvestments,b=bonds,bf=blendedFinanceDeals;
+    let subs;
+    if(level===0)subs=[[vc,'venture capital'],[pe,'private equity'],[b,'bonds'],[bf,'blended finance deployments']];
+    else if(level===1){const bb=b+bf;subs=[[vc,'venture capital'],[pe,'private equity'],[bb,'bonds & blended deals']];}
+    else{const eq=vc+pe,bb=b+bf;subs=[[eq,'equity deals'],[bb,'bonds & blended deals']];}
+    const active=subs.filter(([n])=>n>0);
+    return active.length?`**${totalInvestments} investments** including ${joinList(active.map(([n,l])=>`${n} ${l}`))}`:
+      `**${totalInvestments} investments**`;
+  };
+
+  // ── Rounds bullet (5 levels) ─────────────────────────────────
+  const buildRoundsBullet=(level)=>{
+    if(totalRounds===0)return'';
+    if(level>=4)return`**${totalRounds} rounds of capital raised** by private companies`;
+    const{preSeed,seed,seriesA,seriesB,seriesC,seriesD}=roundStages;
+    let stages;
+    if(level===0)stages=[[preSeed,'pre-seed'],[seed,'seed'],[seriesA,'Series A'],[seriesB,'Series B'],[seriesC,'Series C'],[seriesD,'Series D+']];
+    else if(level===1)stages=[[preSeed,'pre-seed'],[seed,'seed'],[seriesA,'Series A'],[seriesB,'Series B'],[seriesC+seriesD,'Series C+']];
+    else if(level===2)stages=[[preSeed,'pre-seed'],[seed,'seed'],[seriesA,'Series A'],[seriesB+seriesC+seriesD,'Series B+']];
+    else stages=[[preSeed+seed,'seed'],[seriesA,'Series A'],[seriesB+seriesC+seriesD,'Series B+']];
+    const active=stages.filter(([n])=>n>0);
+    return active.length
+      ?`**${totalRounds} rounds of capital raised** by private companies — ${joinList(active.map(([n,l])=>`${n} ${l}`))}`
+      :`**${totalRounds} rounds of capital raised** by private companies`;
+  };
+
+  // ── Other deals bullet (4 levels) ────────────────────────────
+  const buildOtherBullet=(level)=>{
+    if(totalOther===0)return'';
+    if(level>=3)return`**${totalOther} other deals**`;
+    const fl2=0,lo=col1Loans,gr=col1Grants,cn=convertibleNotes,ex=exits;
+    let subs;
+    if(level===0)subs=[[fl2,'fund launches'],[lo,'loans'],[gr,'grants'],[cn,'convertible notes'],[ex,'exits']];
+    else if(level===1){const ln=lo+cn;subs=[[fl2,'fund launches'],[ln,'loans & notes'],[gr,'grants'],[ex,'exits']];}
+    else{const fa=fl2+ex;const ln=lo+cn;subs=[[fa,'fund activity'],[ln,'loans & notes'],[gr,'grants']];}
+    const active=subs.filter(([n])=>n>0);
+    return active.length?`**${totalOther} other deals** including ${joinList(active.map(([n,l])=>`${n} ${l}`))}`:
+      `**${totalOther} other deals**`;
+  };
+
+  // ── Assembly with progressive truncation ─────────────────────
+  // Each config: [invParaLevel, includeFlow, invBulletLevel, roundsLevel, otherLevel]
+  // Applied one rule at a time per spec order
+  const configs=[
+    [0,true, 0,0,0],[0,true, 0,1,0],[0,true, 0,2,0],[0,true, 0,3,0],[0,true, 0,4,0],
+    [0,true, 1,4,0],[0,true, 2,4,0],[0,true, 3,4,0],
+    [0,true, 3,4,1],[0,true, 3,4,2],[0,true, 3,4,3],
+    [0,false,3,4,3],
+    [1,false,3,4,3],[2,false,3,4,3],[3,false,3,4,3],[4,false,3,4,3],
+  ];
+  const assemble=([ipl,fp,ibl,rbl,obl])=>{
+    let t=openLine;
+    const ip=buildInvPara(ipl);if(ip)t+='\n\n'+ip;
+    if(fp){const f=buildFlow();if(f)t+='\n\n'+f;}
+    const bullets=[buildInvBullet(ibl),buildRoundsBullet(rbl),buildOtherBullet(obl)].filter(Boolean);
+    if(bullets.length)t+='\n\nDeals include:\n• '+bullets.join('\n• ');
+    return t;
+  };
+  for(const cfg of configs){
+    const t=assemble(cfg);
+    if(t.replace(/\*\*/g,'').length<=850)return t;
+  }
+  return`**${totalDeals} deals** mapped across multiple investment types.`;
 }
 
 function buildCol2(stats){
@@ -884,8 +1016,8 @@ async function generateReport(){
     // Header (0–155): pure white
     doc.setFillColor(0xFF,0xFF,0xFF);
     doc.rect(0,0,1240,155,'F');
-    // Body (155–1259): #FFFAEE at 1% opacity over white → (255,255,253)
-    doc.setFillColor(255,255,253);
+    // Body (155–1259): pure white
+    doc.setFillColor(0xFF,0xFF,0xFF);
     doc.rect(0,155,1240,1104,'F');
     // Footer (1259–bottom): #BCBAAB at 1% opacity over white → (255,255,255)
     doc.setFillColor(0xFF,0xFF,0xFF);
@@ -1002,22 +1134,21 @@ async function generateReport(){
 
     // ── 21-26. Column headers  y=941 Roboto SemiBold 18pt ls=0.9 ──
     const HCOLS=[
-      {t:'DEAL FLOW',x:56},{t:'VALUE',x:449},{t:'METRO AREA',x:575},
+      {t:'DEAL FLOW',x:56},{t:'VALUE',x:432},{t:'METRO AREA',x:575},
       {t:'THEME',x:809},{t:'ACTIVITY',x:1027}
     ];
     doc.setFont('Roboto','semibold');doc.setFontSize(18);
     doc.setCharSpace(0.9);doc.setTextColor(0x11,0x1B,0x1E);
     HCOLS.forEach(h=>doc.text(h.t,h.x,951)); // Figma top 941 + cap-height 13pt, -3px
-    // "(USD)" — OpenSauceOne SemiBold 12pt #7A8380 ls=0.6  y=948
-    doc.setFont('Roboto','semibold');doc.setFontSize(18);doc.setCharSpace(0.9);
-    const _vw=doc.getStringUnitWidth('VALUE')*18+0.9*5;
-    doc.setFont('OpenSauceOne','semibold');doc.setFontSize(12);
-    doc.setCharSpace(0.6);doc.setTextColor(0x7A,0x83,0x80);
-    doc.text('(USD)',449+_vw+4,954); // Figma top 948 + cap-height 9pt, -3px
+    // "(USD)" inline after "VALUE" — Roboto Light 14pt, same baseline y=951
+    const _vw=doc.getStringUnitWidth('VALUE')*18+0.9*5; // VALUE width incl. char-spacing
+    const _spW=doc.getStringUnitWidth(' ')*18;            // 1 space at header font size
+    doc.setFont('Roboto','light');doc.setFontSize(14);
+    doc.setCharSpace(0.4);doc.setTextColor(0x7A,0x83,0x80);
+    doc.text('(USD)',432+_vw+_spW,951);
     doc.setCharSpace(0);
-    // Compute centre of VALUE(USD) header block for data alignment
-    const _usdW=doc.getStringUnitWidth('(USD)')*12+0.6*5;
-    const _valCenterX=449+(_vw+4+_usdW)/2;
+    // Data value column: x=455 per Figma
+    const _valCenterX=455;
 
     // ── 27. Table header bottom rule  y=971 — off-black ──────
     drawRule(doc,56,966,1124,0x11,0x1B,0x1E);
@@ -1044,7 +1175,7 @@ async function generateReport(){
       const multiRec=deal.recipient&&deal.recipient.includes('/');
       const inv=_trunc(deal.investor,50);
       const rec=_trunc(deal.recipient,47);
-      doc.setFont('Roboto','semibold');doc.setFontSize(16);doc.setCharSpace(0.8);doc.setTextColor(0x11,0x1B,0x1E);
+      doc.setFont('Roboto','normal');doc.setFontSize(16);doc.setCharSpace(0.8);doc.setTextColor(0x11,0x1B,0x1E);
       doc.text(`${inv}${multiInv&&!inv.endsWith('...')?'+':''}`,56,ry);
 
       // DEAL FLOW line 2 — ⤷ drawn arrow then recipient
@@ -1054,12 +1185,12 @@ async function generateReport(){
       doc.line(59,ry2-5,73,ry2-5);           // horizontal shaft
       doc.line(73,ry2-5,69,ry2-9);           // arrowhead upper
       doc.line(73,ry2-5,69,ry2-1);           // arrowhead lower
-      doc.setFont('Roboto','semibold');doc.setFontSize(16);doc.setCharSpace(0.8);
+      doc.setFont('Roboto','normal');doc.setFontSize(16);doc.setCharSpace(0.8);
       doc.text(`${rec}${multiRec&&!rec.endsWith('...')?'+':''}`,79,ry2);
 
-      // VALUE — centred under VALUE (USD) header
-      doc.setFont('Roboto','normal');doc.setCharSpace(0.8);
-      doc.text(fmtRowValue(deal.amount),_valCenterX,rym,{align:'center'});
+      // VALUE — left-aligned at x=455 per Figma
+      doc.setFont('Roboto','normal');doc.setFontSize(16);doc.setCharSpace(0.8);
+      doc.text(fmtRowValue(deal.amount),_valCenterX,rym);
       // METRO AREA
       const iso=ISO3[deal.country]||deal.country.slice(0,3).toUpperCase();
       let city=deal.city;if(city.length>20)city=city.slice(0,18)+'...';
