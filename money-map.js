@@ -713,8 +713,8 @@ function buildCol1(stats){
 
   // ── Opening line ─────────────────────────────────────────────
   const openLine=nCtry>=2
-    ?`—across **${nInv} investors** in ${nCtry} countries and **${nRec} private companies** in ${nCtry} countries.`
-    :`—across **${nInv} investors** and **${nRec} private companies**.`;
+    ?`—across **${nInv} investors** in ${nCtry} countries and **${nRec} organizations** in ${nCtry} countries.`
+    :`—across **${nInv} investors** and **${nRec} organizations**.`;
 
   // ── Investor types paragraph (5 collapse levels) ─────────────
   const buildInvPara=(level)=>{
@@ -755,7 +755,7 @@ function buildCol1(stats){
   // ── Rounds bullet (5 levels) ─────────────────────────────────
   const buildRoundsBullet=(level)=>{
     if(totalRounds===0)return'';
-    if(level>=4)return`**${totalRounds} rounds of capital raised** by private companies`;
+    if(level>=4)return`**${totalRounds} rounds of capital raised** by companies`;
     const{preSeed,seed,seriesA,seriesB,seriesC,seriesD}=roundStages;
     let stages;
     if(level===0)stages=[[preSeed,'pre-seed'],[seed,'seed'],[seriesA,'Series A'],[seriesB,'Series B'],[seriesC,'Series C'],[seriesD,'Series D+']];
@@ -764,8 +764,8 @@ function buildCol1(stats){
     else stages=[[preSeed+seed,'seed'],[seriesA,'Series A'],[seriesB+seriesC+seriesD,'Series B+']];
     const active=stages.filter(([n])=>n>0);
     return active.length
-      ?`**${totalRounds} rounds of capital raised** by private companies — ${joinList(active.map(([n,l])=>`${n} ${l}`))}`
-      :`**${totalRounds} rounds of capital raised** by private companies`;
+      ?`**${totalRounds} rounds of capital raised** by companies — ${joinList(active.map(([n,l])=>`${n} ${l}`))}`
+      :`**${totalRounds} rounds of capital raised** by companies`;
   };
 
   // ── Other deals bullet (4 levels) ────────────────────────────
@@ -803,7 +803,7 @@ function buildCol1(stats){
   for(const cfg of configs){
     const t=assemble(cfg);
     const plain=t.replace(/\*\*/g,'');
-    if(plain.length<=850&&estimateColHeight(t,340,19,12)<=476)return t;
+    if(plain.length<=850&&estimateColHeight(t,310,19,12)<=476)return t;
   }
   return`**${totalDeals} deals** mapped across multiple investment types.`;
 }
@@ -886,7 +886,7 @@ function buildCol2(stats){
   for(const cfg of configs){
     const t=assemble(cfg);
     const plain=t.replace(/\*\*/g,'');
-    if(plain.length<=850&&estimateColHeight(t,340,19,12)<=476)return t;
+    if(plain.length<=850&&estimateColHeight(t,310,19,12)<=476)return t;
   }
   return`—across **${themesSorted.length} themes**.`;
 }
@@ -970,6 +970,15 @@ function drawGradBar(doc,x,y,w,h){
 }
 
 function drawRule(doc,x,y,w,r=0xBB,g=0xCB,bd=0xBD){doc.setDrawColor(r,g,bd);doc.setLineWidth(0.5);doc.line(x,y,x+w,y)}
+
+// Figma→jsPDF baseline conversion.
+// Figma Y = top of bounding box; jsPDF Y = text baseline.
+// baseline = figmaY + ascent_ratio × fontSize
+// Measured ascent ratios (gap_above_caps + cap_height):
+//   OpenSauceOne: 0.958  (gap≈0.238 + cap_height≈0.72)
+//   Roboto: 0.935 | Poppins: 0.940 | Playfair: 0.940
+const ASCENT={OpenSauceOne:0.958,Roboto:0.935,Poppins:0.940,Playfair:0.940};
+function figmaBaseline(figmaY,size,font){return figmaY+(ASCENT[font]||0.93)*size;}
 
 // Estimate rendered column height without a jsPDF doc — used by build functions
 // to check height constraint before rendering. Approximates Roboto Light 16pt + charSpace 0.8.
@@ -1193,17 +1202,16 @@ async function generateReport(){
       doc.setFillColor(0xFF,0xFA,0xEE);
       doc.roundedRect(cx,176,224,101,5,5,'FD');
     });
-    // Values — OpenSauceOne Medium 40pt  Figma top=185 (176+9) → baseline +29
+    // Values — OpenSauceOne Medium 40pt  Figma top=185 (176+9) → figmaBaseline(185,40)=223
     doc.setFont('OpenSauceOne','medium');doc.setFontSize(40);
     doc.setCharSpace(0.5);doc.setTextColor(0x11,0x1B,0x1E);
-    doc.text(capStr,453.07,214,{align:'center'});
-    doc.text(instStr,787.07,214,{align:'center'});
-    // Labels — OpenSauceOne Medium 16pt (lighter than semibold, closest to Regular)
-    // Figma top=245 (176+69) → baseline +12
+    doc.text(capStr,453.07,figmaBaseline(185,40,'OpenSauceOne'),{align:'center'});
+    doc.text(instStr,787.07,figmaBaseline(185,40,'OpenSauceOne'),{align:'center'});
+    // Labels — OpenSauceOne Medium 16pt  Figma top=245 (176+69) → figmaBaseline(245,16)=260
     doc.setFont('OpenSauceOne','medium');doc.setFontSize(16);
     doc.setCharSpace(0.4);
-    doc.text('(USD)',453.07,257,{align:'center'});
-    doc.text('institutions',787.07,257,{align:'center'});
+    doc.text('(USD)',453.07,figmaBaseline(245,16,'OpenSauceOne'),{align:'center'});
+    doc.text('institutions',787.07,figmaBaseline(245,16,'OpenSauceOne'),{align:'center'});
     doc.setCharSpace(0);
 
     // ── 10-12. BOTTOM STAT CARDS ─────────────────────────────
@@ -1216,16 +1224,16 @@ async function generateReport(){
     ];
     bCards.forEach(c=>{
       const cx=c.x+146;
-      doc.setFillColor(c.r,c.g,c.b);doc.setDrawColor(c.r,c.g,c.b);doc.setLineWidth(1);
+      doc.setFillColor(c.r,c.g,c.b);doc.setDrawColor(0x32,0x52,0x30);doc.setLineWidth(1);
       doc.roundedRect(c.x,299,292,75,5,5,'FD');
-      // Value — OpenSauceOne Medium 34pt  Figma top=303 (299+4) → baseline +25
+      // Value — OSOne Medium 34pt  Figma top=303 (299+4) → figmaBaseline(303,34)=336
       doc.setFont('OpenSauceOne','medium');doc.setFontSize(34);
       doc.setCharSpace(0.5);doc.setTextColor(0xFF,0xFA,0xEE);
-      doc.text(c.val,cx,328,{align:'center'});
-      // Label — OpenSauceOne Medium 16pt  Figma top=346 (299+47) → baseline +12
+      doc.text(c.val,cx,figmaBaseline(303,34,'OpenSauceOne'),{align:'center'});
+      // Label — OSOne Medium 16pt  Figma top=346 (299+47) → figmaBaseline(346,16)=361
       doc.setFont('OpenSauceOne','medium');doc.setFontSize(16);
       doc.setCharSpace(0.4);
-      doc.text(c.lbl,cx,358,{align:'center'});
+      doc.text(c.lbl,cx,figmaBaseline(346,16,'OpenSauceOne'),{align:'center'});
       doc.setCharSpace(0);
     });
 
@@ -1239,18 +1247,18 @@ async function generateReport(){
     doc.setDrawColor(0xB6,0x67,0x34);doc.line(833,393,833,485.5);
 
     // Column text — Roboto Light 16pt ls=0.8 black; bold segments use Roboto Medium
-    // Column dimensions: x=92/474/856  y=393  w=340  maxHeight=476 → COL_MAXY=869
+    // Column dimensions: x=92/474/856  y=393  w=310  maxHeight=476 → COL_MAXY=869
     const COL_LH=19,COL_PARA=12,COL_MAXY=869;
     doc.setCharSpace(0.8);
-    renderCol1Bullets(doc,buildCol1(stats),92, 393,340,16,COL_LH,COL_PARA,COL_MAXY,0,0,0,20);
-    renderRich(doc,buildCol2(stats),       474,393,340,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium',COL_PARA);
-    renderRich(doc,buildCol3(stats),       856,393,340,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium',COL_PARA);
+    renderCol1Bullets(doc,buildCol1(stats),92, 393,310,16,COL_LH,COL_PARA,COL_MAXY,0,0,0,20);
+    renderRich(doc,buildCol2(stats),       474,393,310,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium',COL_PARA);
+    renderRich(doc,buildCol3(stats),       856,393,310,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium',COL_PARA);
     doc.setCharSpace(0);
 
-    // ── 19. HIGHLIGHTS HEADER  y=898 ─────────────────────────
+    // ── 19. HIGHLIGHTS HEADER  Figma y=893 ──────────────────────
     doc.setFont('Roboto','semibold');doc.setFontSize(22);
     doc.setCharSpace(1.1);doc.setTextColor(0x20,0x49,0x37);
-    doc.text('HIGHLIGHTS',56,911); // Figma top 898 + cap-height 16pt, -3px
+    doc.text('HIGHLIGHTS',56,figmaBaseline(893,22,'Roboto')); // Figma top y=893
     doc.setCharSpace(0);
 
     // ── 20. Table header top rule  y=935 — off-black ─────────
@@ -1263,13 +1271,13 @@ async function generateReport(){
     ];
     doc.setFont('Roboto','semibold');doc.setFontSize(18);
     doc.setCharSpace(0.9);doc.setTextColor(0x11,0x1B,0x1E);
-    HCOLS.forEach(h=>doc.text(h.t,h.x,951)); // Figma top 941 + cap-height 13pt, -3px
-    // "(USD)" inline after "VALUE" — Roboto Light 14pt, same baseline y=951
+    HCOLS.forEach(h=>doc.text(h.t,h.x,figmaBaseline(936,18,'Roboto'))); // Figma top y=936
+    // "(USD)" inline after "VALUE" — Roboto Light 14pt, same baseline
     const _vw=doc.getStringUnitWidth('VALUE')*18+0.9*5; // VALUE width incl. char-spacing
     const _spW=doc.getStringUnitWidth(' ')*18;            // 1 space at header font size
     doc.setFont('Roboto','light');doc.setFontSize(14);
     doc.setCharSpace(0.4);doc.setTextColor(0x7A,0x83,0x80);
-    doc.text('(USD)',432+_vw+_spW,951);
+    doc.text('(USD)',432+_vw+_spW,figmaBaseline(936,18,'Roboto'));
     doc.setCharSpace(0);
     // Data value column: x=455 per Figma
     const _valCenterX=455;
@@ -1279,13 +1287,13 @@ async function generateReport(){
 
     // ── 28-32. Data rows — exact Y coords from Figma ─────────
     // Investor baselines: 978,1033,1088,1143,1198
-    // Recipient baselines: 1000,1055,1110,1165,1220
-    // Other-col baselines: 987,1043,1098,1153,1208
-    // Row separators (light): 1026,1081,1136,1191
-    // Figma top coords + 12pt cap-height offset for 16pt Roboto → jsPDF baselines
-    const INV_YS =[987,1042,1097,1152,1207];
-    const REC_YS =[1009,1064,1119,1174,1229];
-    const MID_YS =[996,1052,1107,1162,1217];
+    // Figma top coords (Roboto 16pt) → figmaBaseline(y,16,'Roboto') = y+14.96
+    // Investor tops:  973,1028,1083,1138,1193  → baselines 988,1043,1098,1153,1208
+    // Recipient tops: 995,1050,1105,1160,1215  → baselines 1010,1065,1120,1175,1230
+    // Mid-col tops:   982,1037,1092,1147,1202  → baselines  997,1052,1107,1162,1217
+    const INV_YS =[988,1043,1098,1153,1208];
+    const REC_YS =[1010,1065,1120,1175,1230];
+    const MID_YS =[997,1052,1107,1162,1217];
     const ROW_LINES=[1021,1076,1131,1186];
     const _trunc=(n,max)=>{const s=shortenName(n);return s.length<=max?s:s.slice(0,max-3)+'...'};
     stats.highlightRows.forEach((deal,idx)=>{
