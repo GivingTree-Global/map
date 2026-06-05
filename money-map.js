@@ -1207,11 +1207,11 @@ async function generateReport(){
     doc.setCharSpace(0.5);doc.setTextColor(0x11,0x1B,0x1E);
     doc.text(capStr,453.07,figmaBaseline(185,40,'OpenSauceOne'),{align:'center'});
     doc.text(instStr,787.07,figmaBaseline(185,40,'OpenSauceOne'),{align:'center'});
-    // Labels — OpenSauceOne Medium 16pt  Figma top=245 (176+69) → figmaBaseline(245,16)=260
-    doc.setFont('OpenSauceOne','medium');doc.setFontSize(16);
+    // Labels — Roboto Light 16pt  Figma top=245 (176+69) → figmaBaseline(245,16,'Roboto')=260
+    doc.setFont('Roboto','light');doc.setFontSize(16);
     doc.setCharSpace(0.4);
-    doc.text('(USD)',453.07,figmaBaseline(245,16,'OpenSauceOne'),{align:'center'});
-    doc.text('institutions',787.07,figmaBaseline(245,16,'OpenSauceOne'),{align:'center'});
+    doc.text('(USD)',453.07,figmaBaseline(245,16,'Roboto'),{align:'center'});
+    doc.text('institutions',787.07,figmaBaseline(245,16,'Roboto'),{align:'center'});
     doc.setCharSpace(0);
 
     // ── 10-12. BOTTOM STAT CARDS ─────────────────────────────
@@ -1247,12 +1247,14 @@ async function generateReport(){
     doc.setDrawColor(0xB6,0x67,0x34);doc.line(833,393,833,485.5);
 
     // Column text — Roboto Light 16pt ls=0.8 black; bold segments use Roboto Medium
-    // Column dimensions: x=92/474/856  y=393  w=310  maxHeight=476 → COL_MAXY=869
-    const COL_LH=19,COL_PARA=12,COL_MAXY=869;
+    // Figma text box y=389; visible text top y=393 (4px ascent gap for Roboto 16pt).
+    // COL_Y = figmaBaseline(389,16,'Roboto') ≈ 404; COL_MAXY = 404+476 = 880.
+    const COL_Y=Math.round(figmaBaseline(389,16,'Roboto'));  // 404
+    const COL_LH=19,COL_PARA=12,COL_MAXY=COL_Y+476;        // 880
     doc.setCharSpace(0.8);
-    renderCol1Bullets(doc,buildCol1(stats),92, 393,310,16,COL_LH,COL_PARA,COL_MAXY,0,0,0,20);
-    renderRich(doc,buildCol2(stats),       474,393,310,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium',COL_PARA);
-    renderRich(doc,buildCol3(stats),       856,393,310,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium',COL_PARA);
+    renderCol1Bullets(doc,buildCol1(stats),92, COL_Y,310,16,COL_LH,COL_PARA,COL_MAXY,0,0,0,20);
+    renderRich(doc,buildCol2(stats),       474,COL_Y,310,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium',COL_PARA);
+    renderRich(doc,buildCol3(stats),       856,COL_Y,310,16,COL_LH,COL_MAXY,0,0,0,'Roboto','light','medium',COL_PARA);
     doc.setCharSpace(0);
 
     // ── 19. HIGHLIGHTS HEADER  Figma y=893 ──────────────────────
