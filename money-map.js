@@ -1063,7 +1063,7 @@ function renderCol1Bullets(doc,text,x,y,maxW,fontSize,lineH,paraH,maxY,colorR,co
           const w=words[wi];
           // preserve inter-token spaces (leading empty string from split)
           if(w===''){cx+=meas(' ',tok.b);continue;}
-          const ws=w+(wi<words.length-1?' ':'');
+          const ws=w+((wi<words.length-1&&words[wi+1]!=='')?' ':''); // trailing space only if next word non-empty
           const ww=meas(ws,tok.b);
           if(cx+ww>x+maxW+2&&cx>x+indent){flush();curY+=lineH;cx=x+indent;if(curY>maxY)return}
           lineSegs.push({t:ws,b:tok.b,x:cx});cx+=ww;
@@ -1112,7 +1112,7 @@ function renderRich(doc,text,x,y,maxW,fontSize,lineH,maxY,colorR,colorG,colorB,f
     const words=tok.t.split(' ');
     for(let wi=0;wi<words.length;wi++){
       const w=words[wi];if(w===''){curX+=meas(' ',tok.b);continue;} // advance cursor for inter-token spaces
-      const ws=w+(wi<words.length-1?' ':'');
+      const ws=w+((wi<words.length-1&&words[wi+1]!=='')?' ':''); // trailing space only if next word non-empty (empty next = trailing space, handled by its own meas(' '))
       const ww=meas(ws,tok.b);
       if(curX+ww>x+maxW+2&&curX>x){flush();curY+=lineH;curX=x;if(curY>maxY)return}
       lineSegs.push({t:ws,b:tok.b,x:curX});curX+=ww;
