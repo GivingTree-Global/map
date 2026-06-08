@@ -710,7 +710,37 @@ function computeReportStats(fl){
   const continentCounts={};fl.forEach(d=>{if(d.continent)continentCounts[d.continent]=(continentCounts[d.continent]||0)+1});
   const continentsSorted=Object.entries(continentCounts).sort((a,b)=>b[1]-a[1]);
 
-  return{totalCapital,totalDeals:fl.length,allInst,investorSet,recipientSet,investorCats,dealSubtypes,investments,fundraises,themesSorted,socialThemeCount,envThemeCount,citiesSorted,countriesSorted,continents,continentsSorted,cityCountry,countryMetros,crossBorderPct,highlightRows,invTypes,i2iDeals,i2bDeals,i2iCapital,i2bCapital,totalInvestments,vcInvestments,peInvestments,bonds,blendedFinanceDeals,totalRounds,roundStages,col1Loans,col1Grants,convertibleNotes,exits,totalOther,multiThemePct,avgThemesPerDeal,validOverlaps};
+  // ── Column 3 geography stats (per column-3-geography-spec) ──────────
+  // Capital by geography (for "% of capital tracked" shares)
+  const cityCapital={},countryCapital={},continentCapital={};
+  fl.forEach(d=>{const a=d.amount||0;
+    cityCapital[d.city]=(cityCapital[d.city]||0)+a;
+    countryCapital[d.country]=(countryCapital[d.country]||0)+a;
+    if(d.continent)continentCapital[d.continent]=(continentCapital[d.continent]||0)+a;});
+  // Capital-% is usable only if disclosed amounts cover ≥60% of deals (else fall back to counts)
+  const disclosedCount=fl.filter(d=>(d.amount||0)>0).length;
+  const capitalDisclosed=fl.length?(disclosedCount/fl.length)>=0.6:false;
+
+  // Cross-border: heuristic by investor name/type (directional country-pair flows require
+  // investor-location data we don't carry yet — investorLocationKnown gates the flow block).
+  const _xbRe=/\b(IFC|IDB Invest|IDB|JICA|AIIB|CAF|EBRD|BII|CDC|Proparco|FMO|Norfund|DEG|DFC|EIB|World Bank|Finnfund|Swedfund|BIO|responsAbility|Blue\s?Orchard)\b/i;
+  const isXB=d=>d.sourceType==='DFI'||_xbRe.test(d.investor||'');
+  const xbDeals=fl.filter(isXB),domDeals=fl.filter(d=>!isXB(d));
+  const xbCapital=xbDeals.reduce((s,d)=>s+(d.amount||0),0);
+  const xbDealPct=fl.length?Math.round(100*xbDeals.length/fl.length):0;
+  const xbCapPct=totalCapital?Math.round(100*xbCapital/totalCapital):0;
+  const investorLocationKnown=fl.some(d=>d.investorCountry); // false today → flow block omitted
+
+  // Mode selector — footprint measured on recipient side (investor side unknown)
+  const _topCity=citiesSorted[0],_topCountry=countriesSorted[0];
+  const cityFoot=_topCity?_topCity[1]/fl.length:0;
+  const countryFoot=_topCountry?_topCountry[1]/fl.length:0;
+  let geoMode='distributed',geoSub=null;
+  if(cityFoot>=0.65){geoMode='focused-city';geoSub=cityFoot>=0.95?'mono':'dominant';}
+  else if(countryFoot>=0.75){geoMode='focused-country';geoSub=countryFoot>=0.95?'mono':'dominant';}
+
+  return{totalCapital,totalDeals:fl.length,allInst,investorSet,recipientSet,investorCats,dealSubtypes,investments,fundraises,themesSorted,socialThemeCount,envThemeCount,citiesSorted,countriesSorted,continents,continentsSorted,cityCountry,countryMetros,crossBorderPct,highlightRows,invTypes,i2iDeals,i2bDeals,i2iCapital,i2bCapital,totalInvestments,vcInvestments,peInvestments,bonds,blendedFinanceDeals,totalRounds,roundStages,col1Loans,col1Grants,convertibleNotes,exits,totalOther,multiThemePct,avgThemesPerDeal,validOverlaps,
+    cityCapital,countryCapital,continentCapital,capitalDisclosed,xbDeals,domDeals,xbCapital,xbDealPct,xbCapPct,investorLocationKnown,geoMode,geoSub};
 }
 
 function joinList(arr){if(!arr.length)return'';if(arr.length===1)return arr[0];if(arr.length===2)return arr[0]+' and '+arr[1];return arr.slice(0,-1).join(', ')+', and '+arr[arr.length-1]}
@@ -902,55 +932,178 @@ function buildCol2(stats){
   return`—across **${themesSorted.length} themes**.`;
 }
 
+// ── COLUMN 3 — GEOGRAPHY (per column-3-geography-spec.md) ──────────────
+// Dispatcher: pick mode from the deal footprint, then run its builder.
+// "Regions" are mapped to continents in this demo dataset. Directional
+// cross-border content (flow block / reach / inbound-outbound buckets)
+// is gated on investorLocationKnown and omits until investor-location
+// data is added to the deals.
+const COL3_W=310,COL3_LH=19,COL3_PARA=12,COL3_MAXH=476;
+function col3Fits(t){return estimateColHeight(t,COL3_W,COL3_LH,COL3_PARA)<=COL3_MAXH;}
+
 function buildCol3(stats){
-  const{citiesSorted,countriesSorted,continents,continentsSorted,cityCountry,countryMetros,crossBorderPct,totalDeals}=stats;
-  const nMetros=Object.keys(cityCountry).length;
+  if(stats.geoMode==='focused-city')return buildCol3FocusedCity(stats);
+  if(stats.geoMode==='focused-country')return buildCol3FocusedCountry(stats);
+  return buildCol3Distributed(stats);
+}
+
+function buildCol3Distributed(stats){
+  const{citiesSorted,countriesSorted,continentsSorted,cityCountry,countryMetros,
+        totalCapital,cityCapital,continentCapital,capitalDisclosed,
+        xbDeals,xbDealPct,xbCapPct}=stats;
   const nCountries=countriesSorted.length;
-  const nCont=continents.size;
 
-  // Para 1: opener + top 5 cities
-  let t=`—across ${nMetros} metro areas in ${nCountries} countries and ${nCont} continents.`;
-  const top5c=citiesSorted.slice(0,5);
-  if(top5c.length>=1){
-    const[c1,n1]=top5c[0];
-    t+=` The largest concentration of activity is in ${c1} (${cityCountry[c1]}) with ${n1} deals`;
-    if(top5c.length>=2){const[c2,n2]=top5c[1];t+=`, followed by ${c2} (${cityCountry[c2]}, ${n2} deals)`;}
-    if(top5c.length>=3){const[c3,n3]=top5c[2];t+=`, ${c3} (${cityCountry[c3]}, ${n3} deals)`;}
-    if(top5c.length>=4){const[c4,n4]=top5c[3];t+=`, ${c4} (${cityCountry[c4]}, ${n4} deals)`;}
-    if(top5c.length>=5){const[c5,n5]=top5c[4];t+=`, and ${c5} (${cityCountry[c5]}, ${n5} deals)`;}
-    t+='.';
-  }
+  // ── Opener — countries + regions(=continents) ────────────────
+  const nRegions=continentsSorted.length;
+  let opener=`—across ${nCountries} countr${nCountries!==1?'ies':'y'}`;
+  if(nRegions>=2)opener+=` and ${nRegions} regions`;
+  else if(nRegions===1)opener+=` in ${continentsSorted[0][0]}`;
+  opener+='.';
 
-  // Para 2: top 5 countries
-  const top5co=countriesSorted.slice(0,5);
-  if(top5co.length>=1){
-    const[co1,n1]=top5co[0];const m1=(countryMetros[co1]||new Set()).size;
-    t+=`\n\nBy country, ${co1} leads with ${n1} deals across ${m1} metro area${m1!==1?'s':''}`;
-    if(top5co.length>=2){const[co2,n2]=top5co[1];const m2=(countryMetros[co2]||new Set()).size;t+=`, followed by ${co2} (${n2} deals, ${m2} metro${m2!==1?'s':''})`;}
-    if(top5co.length>=3){const[co3,n3]=top5co[2];const m3=(countryMetros[co3]||new Set()).size;t+=`, ${co3} (${n3} deals, ${m3} metro${m3!==1?'s':''})`;}
-    if(top5co.length>=4){const[co4,n4]=top5co[3];const m4=(countryMetros[co4]||new Set()).size;t+=`, ${co4} (${n4} deals, ${m4} metro${m4!==1?'s':''})`;}
-    if(top5co.length>=5){const[co5,n5]=top5co[4];const m5=(countryMetros[co5]||new Set()).size;t+=`, and ${co5} (${n5} deals, ${m5} metro${m5!==1?'s':''})`;}
-    t+='.';
-  }
+  // ── Domestic / cross-border headline ─────────────────────────
+  const useCap=capitalDisclosed;
+  const xbPct=useCap?xbCapPct:xbDealPct,domPct=100-xbPct;
+  const xbCond=xbPct>=50?'showing a global dynamic in the impact capital tracked.':
+    xbPct>=20?'reflecting a mix of domestic deployment and international reach.':
+    'with the majority of capital staying close to home.';
+  const headline=(withCond)=>{
+    if(xbDeals.length===0)return'All mapped deals are domestic (none cross-border).';
+    let s=useCap
+      ?`${domPct}% of capital tracked is from domestic deals, while ${xbPct}% crosses borders`
+      :`${domPct}% of deals are domestic, while ${xbPct}% cross borders`;
+    return s+(withCond?` — ${xbCond}`:'.');
+  };
 
-  // Para 3: continent breakdown
-  if(continentsSorted.length>0){
-    const top2=continentsSorted.slice(0,2);
-    const rest=continentsSorted.slice(2);
-    if(top2.length===1){
-      t+=`\n\nAll activity is concentrated in **${top2[0][0]}** (${top2[0][1]} deals).`;
-    } else {
-      const[cont1,cn1]=top2[0];const[cont2,cn2]=top2[1];
-      let cs=`\n\n**${cont1}** (${cn1} deals) and **${cont2}** (${cn2} deals) account for the majority of activity`;
-      if(rest.length>0)cs+=`, with additional presence across ${joinList(rest.map(([c])=>c))}`;
-      t+=cs+'.';
+  // ── Metro concentration block (top N cities + share conditional) ──
+  const metroBlock=(n,withCond)=>{
+    const tops=citiesSorted.slice(0,n);if(!tops.length)return'';
+    const[c1,k1]=tops[0];
+    let s=`The largest concentration of activity is in ${c1} (${cityCountry[c1]}), tied to ${k1} deal${k1!==1?'s':''}`;
+    const overflow=citiesSorted.length-tops.length;
+    // "and" rule: with overflow ≥2, named items are comma-separated and the lone
+    // "and" precedes the overflow clause; with overflow ==1, name that city instead.
+    let rest=tops.slice(1).map(([c,k])=>`${c} (${cityCountry[c]}, ${k} deals)`);
+    if(overflow===1){const[ce,ke]=citiesSorted[tops.length];rest=rest.concat(`${ce} (${cityCountry[ce]}, ${ke} deals)`);}
+    if(rest.length){
+      s+=overflow>=2?`, followed by ${rest.join(', ')}, and ${overflow} other cities`:`, followed by ${joinList(rest)}`;
+    } else if(overflow>=2){
+      s+=`, and ${overflow} other cities`;
     }
+    s+='.';
+    const listedCap=tops.reduce((a,[c])=>a+(cityCapital[c]||0),0);
+    const S=totalCapital?Math.round(100*listedCap/totalCapital):0;
+    const hi=n===1?40:n===2?55:70,lo=n===1?20:n===2?35:40;
+    const conc=S>=hi?'showing high geographic concentration.':S<lo?'with activity spread across numerous metro areas.':'showing moderate clustering around key hubs.';
+    s+=` ${n===1?'This metro area is':'These metro areas are'} tied to ${S}% of capital tracked`;
+    return s+(withCond?` — ${conc}`:'.');
+  };
+
+  // ── By-country block (top N) ─────────────────────────────────
+  const byCountry=(n)=>{
+    const tops=countriesSorted.slice(0,n);if(!tops.length)return'';
+    const[co1,k1]=tops[0];const m1=(countryMetros[co1]||new Set()).size;
+    let s=`By country, ${co1} leads with ${k1} deals across ${m1} metro area${m1!==1?'s':''}`;
+    if(tops.length>=2){
+      const rest=tops.slice(1).map(([co,k])=>{const m=(countryMetros[co]||new Set()).size;return `${co} (${k} deals, ${m} metro${m!==1?'s':''})`;});
+      s+=`, followed by ${joinList(rest)}`;
+    }
+    return s+'.';
+  };
+
+  // ── By-region conditional (continents, capital-share weighted) ──
+  const byRegion=()=>{
+    const byCap=[...continentsSorted].sort((a,b)=>(continentCapital[b[0]]||0)-(continentCapital[a[0]]||0));
+    if(!byCap.length)return'';
+    const share=c=>totalCapital?Math.round(100*(continentCapital[c]||0)/totalCapital):0;
+    const nR=byCap.length,s1=share(byCap[0][0]);
+    if(nR===1)return`All activity falls within ${byCap[0][0]}.`;
+    if(nR===2)return`${byCap[0][0]} is tied to ${share(byCap[0][0])}% of capital tracked; ${byCap[1][0]} holds the remaining ${share(byCap[1][0])}%.`;
+    if(s1>=70){let s=`Regionally, ${byCap[0][0]} dominates — tied to ${s1}% of capital tracked`;if(byCap[1])s+=`, followed distantly by ${byCap[1][0]} at ${share(byCap[1][0])}%`;return s+'.';}
+    return`By region, ${byCap[0][0]} is tied to ${share(byCap[0][0])}% of capital tracked, followed by ${byCap[1][0]} (${share(byCap[1][0])}%) and ${byCap[2][0]} (${share(byCap[2][0])}%).`;
+  };
+
+  // ── Assembly + truncation ladder (spec: 9 steps; flow steps no-op
+  //    until investorLocationKnown) ───────────────────────────────
+  const assemble=(o)=>{
+    let t=opener+'\n\n'+headline(o.cond);
+    if(o.metroN>0){const m=metroBlock(o.metroN,o.cond);if(m)t+='\n\n'+m;}
+    if(o.countryN>0){const c=byCountry(o.countryN);if(c)t+='\n\n'+c;}
+    if(o.region){const r=byRegion();if(r)t+='\n\n'+r;}
+    // flow block inserted here once investorLocationKnown — omitted today
+    return t;
+  };
+  const ladder=[
+    {metroN:5,countryN:3,region:true, cond:true },  // full
+    {metroN:5,countryN:3,region:false,cond:true },  // 1: drop by-region
+    {metroN:5,countryN:3,region:false,cond:false},  // 2: drop interpretive conditionals
+    {metroN:3,countryN:3,region:false,cond:false},  // 5a: metros 5→3
+    {metroN:1,countryN:3,region:false,cond:false},  // 5b: metros 3→1
+    {metroN:1,countryN:1,region:false,cond:false},  // 7: by-country →1
+    {metroN:1,countryN:0,region:false,cond:false},  // 8: drop by-country
+    {metroN:0,countryN:0,region:false,cond:false},  // 9: drop metro block (spine)
+  ];
+  for(const cfg of ladder){const t=assemble(cfg);if(col3Fits(t))return t;}
+  return assemble(ladder[ladder.length-1]); // spine: opener + headline
+}
+
+// Focused modes: openers + concentration are computable from recipient data;
+// domestic/cross-border directional content is gated on investorLocationKnown
+// and omitted until investor-location data is added.
+function buildCol3FocusedCountry(stats){
+  const{geoSub,countriesSorted,citiesSorted,cityCountry,
+        totalCapital,countryCapital}=stats;
+  const[country,kCountry]=countriesSorted[0];
+  const cap=v=>totalCapital?Math.round(100*v/totalCapital):0;
+  // cities within the focus country
+  const inCountry=citiesSorted.filter(([c])=>cityCountry[c]===country);
+  const cityNames=inCountry.map(([c])=>c);
+
+  let t;
+  if(geoSub==='mono'){
+    let spread;
+    if(cityNames.length<=1)spread=`concentrated in ${cityNames[0]||country}`;
+    else if(cityNames.length===2)spread=`split between ${cityNames[0]} and ${cityNames[1]}`;
+    else{const named=cityNames.slice(0,3);const extra=cityNames.length-3;spread=`dispersed across ${joinList(named)}`+(extra>=1?`, and ${extra} other ${extra===1?'city':'cities'}`:'');}
+    t=`—in ${country}, with activity ${spread}.`;
+  }else{
+    t=`—across ${countriesSorted.length} countries, with activity concentrated in ${country}.`;
+    // share line (dominant only)
+    const rest=countriesSorted.slice(1,4).map(([co])=>co);
+    const extra=countriesSorted.length-1-rest.length;
+    let share=`${country} represents ${cap(countryCapital[country]||0)}% of capital tracked`;
+    if(rest.length)share+=`, with the remainder in ${joinList(rest)}`+(extra>=1?`, and ${extra} other ${extra===1?'location':'locations'}`:'');
+    t+='\n\n'+share+'.';
   }
 
-  // Para 4: cross-border
-  const domPct=100-crossBorderPct;
-  const xbSentence=crossBorderPct>=50?'underscoring the increasingly global nature of impact capital.':crossBorderPct>=20?'reflecting a mix of domestic deployment and international reach.':'with the majority of capital staying close to home.';
-  t+=`\n\n${domPct}% of deals are domestic, while ${crossBorderPct}% are cross-border (investors in one country backing recipients in another), ${xbSentence}`;
+  // Concentration sentence (computable; replaces the gated domestic/cross-border block)
+  if(inCountry.length>=1){
+    const tops=inCountry.slice(0,3);
+    const named=tops.map(([c,k])=>`${c} (${k} deals)`);
+    t+=`\n\nWithin ${country}, activity centers on ${joinList(named)}.`;
+  }
+  return t;
+}
+
+function buildCol3FocusedCity(stats){
+  const{geoSub,citiesSorted,cityCountry,countryCapital,countryMetros,
+        totalCapital,cityCapital,countriesSorted}=stats;
+  const[city,kCity]=citiesSorted[0];
+  const country=cityCountry[city];
+  const cap=v=>totalCapital?Math.round(100*v/totalCapital):0;
+
+  let t;
+  if(geoSub==='mono'){
+    t=`—in ${city}, ${country}.`;
+  }else{
+    t=`—in ${city}, ${country} — tied to ${kCity} deals (${cap(cityCapital[city]||0)}% of capital tracked)`;
+    const rest=citiesSorted.slice(1,4).map(([c,k])=>`${c} (${k} deals)`);
+    const extra=citiesSorted.length-1-Math.min(3,citiesSorted.length-1);
+    if(rest.length)t+=`, with the remainder in ${joinList(rest)}`+(extra>=1?`, and ${extra} other ${extra===1?'location':'locations'}`:'');
+    t+='.';
+    // country-context (dominant only)
+    const cCap=countryCapital[country]||0;
+    if(cCap>0)t+=`\n\n${city} accounts for ${totalCapital?Math.round(100*(cityCapital[city]||0)/cCap):0}% of capital tracked in ${country} in this report.`;
+  }
   return t;
 }
 
