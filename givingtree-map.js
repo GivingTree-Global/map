@@ -955,9 +955,9 @@ function buildCol3Distributed(stats){
 
   // ── Opener — countries + regions(=continents) ────────────────
   const nRegions=continentsSorted.length;
-  let opener=`—across ${nCountries} countr${nCountries!==1?'ies':'y'}`;
-  if(nRegions>=2)opener+=` and ${nRegions} regions`;
-  else if(nRegions===1)opener+=` in ${continentsSorted[0][0]}`;
+  let opener=`—across **${nCountries} countr${nCountries!==1?'ies':'y'}**`;
+  if(nRegions>=2)opener+=` and **${nRegions} regions**`;
+  else if(nRegions===1)opener+=` in **${continentsSorted[0][0]}**`;
   opener+='.';
 
   // ── Domestic / cross-border headline ─────────────────────────
@@ -978,12 +978,12 @@ function buildCol3Distributed(stats){
   const metroBlock=(n,withCond)=>{
     const tops=citiesSorted.slice(0,n);if(!tops.length)return'';
     const[c1,k1]=tops[0];
-    let s=`The largest concentration of activity is in ${c1} (${cityCountry[c1]}), tied to ${k1} deal${k1!==1?'s':''}`;
+    let s=`The largest concentration of activity is in **${c1}** (${cityCountry[c1]}), tied to **${k1} deal${k1!==1?'s':''}**`;
     const overflow=citiesSorted.length-tops.length;
     // "and" rule: with overflow ≥2, named items are comma-separated and the lone
     // "and" precedes the overflow clause; with overflow ==1, name that city instead.
-    let rest=tops.slice(1).map(([c,k])=>`${c} (${cityCountry[c]}, ${k} deals)`);
-    if(overflow===1){const[ce,ke]=citiesSorted[tops.length];rest=rest.concat(`${ce} (${cityCountry[ce]}, ${ke} deals)`);}
+    let rest=tops.slice(1).map(([c,k])=>`**${c}** (${cityCountry[c]}, ${k} deals)`);
+    if(overflow===1){const[ce,ke]=citiesSorted[tops.length];rest=rest.concat(`**${ce}** (${cityCountry[ce]}, ${ke} deals)`);}
     if(rest.length){
       s+=overflow>=2?`, followed by ${rest.join(', ')}, and ${overflow} other cities`:`, followed by ${joinList(rest)}`;
     } else if(overflow>=2){
@@ -994,7 +994,7 @@ function buildCol3Distributed(stats){
     const S=totalCapital?Math.round(100*listedCap/totalCapital):0;
     const hi=n===1?40:n===2?55:70,lo=n===1?20:n===2?35:40;
     const conc=S>=hi?'showing high geographic concentration.':S<lo?'with activity spread across numerous metro areas.':'showing moderate clustering around key hubs.';
-    s+=` ${n===1?'This metro area is':'These metro areas are'} tied to ${S}% of capital tracked`;
+    s+=` ${n===1?'This metro area is':'These metro areas are'} tied to **${S}%** of capital tracked`;
     return s+(withCond?` — ${conc}`:'.');
   };
 
@@ -1002,9 +1002,9 @@ function buildCol3Distributed(stats){
   const byCountry=(n)=>{
     const tops=countriesSorted.slice(0,n);if(!tops.length)return'';
     const[co1,k1]=tops[0];const m1=(countryMetros[co1]||new Set()).size;
-    let s=`By country, ${co1} leads with ${k1} deals across ${m1} metro area${m1!==1?'s':''}`;
+    let s=`By country, **${co1}** leads with **${k1} deals** across **${m1} metro area${m1!==1?'s':''}**`;
     if(tops.length>=2){
-      const rest=tops.slice(1).map(([co,k])=>{const m=(countryMetros[co]||new Set()).size;return `${co} (${k} deals, ${m} metro${m!==1?'s':''})`;});
+      const rest=tops.slice(1).map(([co,k])=>{const m=(countryMetros[co]||new Set()).size;return `**${co}** (${k} deals, ${m} metro${m!==1?'s':''})`;});
       s+=`, followed by ${joinList(rest)}`;
     }
     return s+'.';
@@ -1064,13 +1064,13 @@ function buildCol3FocusedCountry(stats){
     if(cityNames.length<=1)spread=`concentrated in ${cityNames[0]||country}`;
     else if(cityNames.length===2)spread=`split between ${cityNames[0]} and ${cityNames[1]}`;
     else{const named=cityNames.slice(0,3);const extra=cityNames.length-3;spread=`dispersed across ${joinList(named)}`+(extra>=1?`, and ${extra} other ${extra===1?'city':'cities'}`:'');}
-    t=`—in ${country}, with activity ${spread}.`;
+    t=`—in **${country}**, with activity ${spread}.`;
   }else{
-    t=`—across ${countriesSorted.length} countries, with activity concentrated in ${country}.`;
+    t=`—across **${countriesSorted.length} countries**, with activity concentrated in **${country}**.`;
     // share line (dominant only)
     const rest=countriesSorted.slice(1,4).map(([co])=>co);
     const extra=countriesSorted.length-1-rest.length;
-    let share=`${country} represents ${cap(countryCapital[country]||0)}% of capital tracked`;
+    let share=`**${country}** represents **${cap(countryCapital[country]||0)}% of capital tracked**`;
     if(rest.length)share+=`, with the remainder in ${joinList(rest)}`+(extra>=1?`, and ${extra} other ${extra===1?'location':'locations'}`:'');
     t+='\n\n'+share+'.';
   }
@@ -1078,8 +1078,8 @@ function buildCol3FocusedCountry(stats){
   // Concentration sentence (computable; replaces the gated domestic/cross-border block)
   if(inCountry.length>=1){
     const tops=inCountry.slice(0,3);
-    const named=tops.map(([c,k])=>`${c} (${k} deals)`);
-    t+=`\n\nWithin ${country}, activity centers on ${joinList(named)}.`;
+    const named=tops.map(([c,k])=>`**${c}** (${k} deals)`);
+    t+=`\n\nWithin **${country}**, activity centers on ${joinList(named)}.`;
   }
   return t;
 }
@@ -1093,16 +1093,16 @@ function buildCol3FocusedCity(stats){
 
   let t;
   if(geoSub==='mono'){
-    t=`—in ${city}, ${country}.`;
+    t=`—in **${city}**, **${country}**.`;
   }else{
-    t=`—in ${city}, ${country} — tied to ${kCity} deals (${cap(cityCapital[city]||0)}% of capital tracked)`;
-    const rest=citiesSorted.slice(1,4).map(([c,k])=>`${c} (${k} deals)`);
+    t=`—in **${city}**, **${country}** — tied to **${kCity} deals** (**${cap(cityCapital[city]||0)}% of capital tracked**)`;
+    const rest=citiesSorted.slice(1,4).map(([c,k])=>`**${c}** (${k} deals)`);
     const extra=citiesSorted.length-1-Math.min(3,citiesSorted.length-1);
     if(rest.length)t+=`, with the remainder in ${joinList(rest)}`+(extra>=1?`, and ${extra} other ${extra===1?'location':'locations'}`:'');
     t+='.';
     // country-context (dominant only)
     const cCap=countryCapital[country]||0;
-    if(cCap>0)t+=`\n\n${city} accounts for ${totalCapital?Math.round(100*(cityCapital[city]||0)/cCap):0}% of capital tracked in ${country} in this report.`;
+    if(cCap>0)t+=`\n\n**${city}** accounts for **${totalCapital?Math.round(100*(cityCapital[city]||0)/cCap):0}%** of capital tracked in ${country} in this report.`;
   }
   return t;
 }
@@ -1348,18 +1348,19 @@ async function generateReport(){
     // ── 2. LOGO  x=38 y=30 w=220.5 h=113 ────────────────────
     if(logoImg)doc.addImage(logoImg,'PNG',38,30,220.5,113);
 
-    // ── 3. "Impact Capital" — Playfair SemiBold 64.5pt ───────
+    // ── 3. "Capital Flows" — Playfair SemiBold 64.5pt ────────
     doc.setFont('Playfair','semibold');doc.setFontSize(64.5);doc.setCharSpace(0);
     doc.setTextColor(0x32,0x52,0x30);
-    const impW=doc.getStringUnitWidth('Impact ')*64.5;
-    doc.text('Impact ',403,88);
+    const capW=doc.getStringUnitWidth('Capital ')*64.5;
+    doc.text('Capital ',421,88);
     doc.setTextColor(0x6B,0x7D,0x89);
-    doc.text('Capital',403+impW,88);
+    const flowW=doc.getStringUnitWidth('Flows')*64.5;
+    doc.text('Flows',421+capW,88);
 
     // ── 4. "REPORT" — Poppins Regular 28pt, ls=1.4 ──────────
     doc.setFont('Poppins','normal');doc.setFontSize(28);
     doc.setCharSpace(1.4);doc.setTextColor(0x7A,0x83,0x80);
-    doc.text('REPORT',620,126,{align:'center'});
+    doc.text('REPORT',421+(capW+flowW)/2,126,{align:'center'});
     doc.setCharSpace(0);
 
     // ── 5. "Demo" — Roboto SemiBold 24pt, ls=1.2 ────────────
