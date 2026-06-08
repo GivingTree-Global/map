@@ -1595,7 +1595,7 @@ async function generateReport(){
     doc.setCharSpace(0);
 
     // ── SAVE ─────────────────────────────────────────────────
-    const fname=`GivingTree-Impact-Capital-Report-${MON[now.getMonth()]}-${now.getDate()}-${now.getFullYear()}.pdf`;
+    const fname=`GivingTree-Capital-Flows-Report-${MON[now.getMonth()]}-${now.getDate()}-${now.getFullYear()}.pdf`;
     doc.save(fname);
 
   }catch(err){
