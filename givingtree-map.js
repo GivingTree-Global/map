@@ -1280,7 +1280,7 @@ const LOGO_SVG=`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.
 function loadFonts(){
   return new Promise((res,rej)=>{
     if(typeof GTFONT_POPPINS_REGULAR!=='undefined'){res();return}
-    const s=document.createElement('script');s.src='money-map-fonts.js';
+    const s=document.createElement('script');s.src='givingtree-map-fonts.js';
     s.onload=res;s.onerror=()=>rej(new Error('Could not load font data. Please check your connection and try again.'));
     document.head.appendChild(s);
   });
